@@ -1,0 +1,20 @@
+[project]
+name = "analise-avancada-de-dados"
+version = "0.1.0"
+description = "Vale Desenvolver 2026 — Análise preditiva de eventos Don't Go em equipamentos de mineração"
+requires-python = ">=3.12"
+dependencies = [
+    "duckdb>=1.5.2",
+    "ipykernel>=7.2.0",
+    "jupyter>=1.1.1",
+    "lightgbm>=4.6.0",
+    "nbformat>=5.10.4",
+    "numpy>=2.4.4",
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.2",
+    "plotly>=6.7.0",
+    "polars>=1.40.1",
+    "pyarrow>=24.0.0",
+    "scikit-learn>=1.8.0",
+    "shap>=0.51.0",
+]

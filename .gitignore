@@ -1,0 +1,35 @@
+# Ambiente virtual
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Arquivos temporários gerados pelo pipeline
+/tmp/
+
+# Outputs intermediários gerados (regeneráveis pelo pipeline)
+outputs/bronze/
+outputs/silver/
+outputs/gold/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# uv
+.python-version
+
+# Claude Code settings
+.claude/
