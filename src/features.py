@@ -136,20 +136,53 @@ def compute_equipment_history_features(df: pl.DataFrame) -> pl.DataFrame:
 
 # ── Orquestrador ─────────────────────────────────────────────────────────────
 
+def _compute_global_stats(
+    silver_files: list[Path],
+    top_alarm_ids: list[int] | None,
+) -> tuple[list[int], dict[str, int]]:
+    """Passa rápida (LazyFrame) para obter top_alarm_ids e frota_map globais."""
+    import duckdb
+    paths = [str(f) for f in silver_files]
+    glob_expr = str(silver_files[0].parent / "silver_*.parquet")
+
+    if top_alarm_ids is None:
+        result = duckdb.execute(f"""
+            SELECT Id_Alarme, COUNT(*) AS cnt
+            FROM read_parquet('{glob_expr}')
+            GROUP BY Id_Alarme
+            ORDER BY cnt DESC
+            LIMIT {TOP_N_FINGERPRINT}
+        """).fetchall()
+        top_alarm_ids = [row[0] for row in result]
+
+    frotas = duckdb.execute(f"""
+        SELECT DISTINCT Tag_Frota FROM read_parquet('{glob_expr}')
+        WHERE Tag_Frota IS NOT NULL ORDER BY Tag_Frota
+    """).fetchall()
+    frota_map = {row[0]: i for i, row in enumerate(frotas)}
+
+    return top_alarm_ids, frota_map
+
+
 def build_feature_matrix(
     silver_months: list[str] | None = None,
     top_alarm_ids: list[int] | None = None,
+    overlap_hours: int = 4,
     save: bool = True,
-) -> tuple[pl.DataFrame, list[int]]:
-    """Carrega silver, aplica todas as features e salva outputs/gold/gold_features.parquet.
+) -> tuple[pl.LazyFrame, list[int]]:
+    """Carrega silver mês a mês, aplica features e salva outputs/gold/gold_{mes}.parquet.
+
+    Processa um mês por vez para limitar uso de RAM. Inclui `overlap_hours` horas
+    do mês anterior como contexto para rolling windows, removendo-as do output.
 
     Args:
         silver_months: sufixos dos meses a usar (ex: ['jan','feb']). None = todos.
         top_alarm_ids: IDs de alarme para fingerprint (reusar entre treino/teste).
-        save: se True, persiste em parquet.
+        overlap_hours: horas de overlap do mês anterior para rolling windows corretas.
+        save: se True, persiste em parquet por mês.
 
     Returns:
-        (DataFrame Gold, lista de alarm_ids usados na fingerprint)
+        (LazyFrame Gold apontando para os parquets salvos, lista de alarm_ids)
     """
     OUTPUT_GOLD.mkdir(parents=True, exist_ok=True)
 
@@ -162,30 +195,83 @@ def build_feature_matrix(
     if missing:
         raise FileNotFoundError(f"Silver files ausentes: {[f.name for f in missing]}")
 
-    print(f"Carregando {len(silver_files)} arquivo(s) silver...")
-    df = pl.scan_parquet([str(f) for f in silver_files]).collect()
-    print(f"  → {len(df):,} registros carregados")
+    print("Calculando estatísticas globais (DuckDB scan)...")
+    top_alarm_ids, frota_map = _compute_global_stats(silver_files, top_alarm_ids)
+    print(f"  → top {len(top_alarm_ids)} alarmes | {len(frota_map)} frotas")
 
-    print("Features temporais...")
-    df = compute_temporal_features(df.lazy()).collect()
+    gold_files = []
+    total_rows = 0
 
-    print("Features de frequência de alarmes (30m / 1h / 4h)...")
-    df = compute_alarm_frequency_features(df)
+    for i, silver_file in enumerate(silver_files):
+        mes = silver_file.stem.replace("silver_", "")
+        print(f"\n[{mes}] Processando...", end=" ", flush=True)
 
-    print(f"Alarm fingerprint (top {TOP_N_FINGERPRINT} alarmes, janela 4h)...")
-    df, top_alarm_ids = compute_alarm_fingerprint(df, top_alarm_ids=top_alarm_ids)
+        # Carrega mês atual
+        df = pl.read_parquet(str(silver_file))
 
-    print("Features de contexto do equipamento...")
-    df = compute_equipment_history_features(df)
+        # Adiciona overlap do mês anterior para rolling windows corretas
+        if i > 0:
+            prev_file = silver_files[i - 1]
+            cutoff = df["Data_Evento"].min() - pl.duration(hours=overlap_hours)
+            tail = (
+                pl.scan_parquet(str(prev_file))
+                .filter(pl.col("Data_Evento") >= cutoff)
+                .collect()
+            )
+            df = pl.concat([tail, df]).sort(["TAG", "Data_Evento"])
+            n_overlap = len(tail)
+            del tail
+        else:
+            n_overlap = 0
 
-    print(f"Gold dataset: {len(df):,} registros × {len(df.columns)} colunas")
+        print(f"{len(df):,} registros (+{n_overlap} overlap)", end=" ", flush=True)
+
+        df = compute_temporal_features(df.lazy()).collect()
+        df = compute_alarm_frequency_features(df)
+        df, _ = compute_alarm_fingerprint(df, top_alarm_ids=top_alarm_ids)
+
+        # Aplica frota_map global (em vez de derivar por mês)
+        df = df.with_columns([
+            pl.col("Tag_Frota")
+              .replace(frota_map, default=None)
+              .cast(pl.Int16)
+              .alias("frota_encoded"),
+            pl.col("apontamento_classe")
+              .eq("Operando").cast(pl.Int8).fill_null(0)
+              .alias("is_em_operacao"),
+            pl.col("apontamento_classe")
+              .str.contains("anuten").cast(pl.Int8).fill_null(0)
+              .alias("is_em_manutencao"),
+            pl.col("apontamento_id").is_null().cast(pl.Int8)
+              .alias("sem_apontamento"),
+        ])
+
+        # Remove linhas de overlap do output final
+        if n_overlap > 0:
+            df = df.slice(n_overlap)
+
+        total_rows += len(df)
+        print(f"→ {len(df):,} gold rows", end="")
+
+        if save:
+            out_path = OUTPUT_GOLD / f"gold_{mes}.parquet"
+            df.write_parquet(str(out_path))
+            gold_files.append(out_path)
+            print(f" → {out_path.name}")
+        else:
+            gold_files.append(silver_file)  # placeholder
+            print()
+
+        del df  # libera RAM imediatamente
+
+    print(f"\nGold total: {total_rows:,} registros em {len(silver_files)} meses")
 
     if save:
-        out_path = OUTPUT_GOLD / "gold_features.parquet"
-        df.write_parquet(str(out_path))
-        print(f"Salvo em {out_path}")
+        lf = pl.scan_parquet([str(f) for f in gold_files])
+    else:
+        lf = pl.scan_parquet([str(f) for f in silver_files])  # fallback
 
-    return df, top_alarm_ids
+    return lf, top_alarm_ids
 
 
 def get_feature_columns(df: pl.DataFrame, include_fingerprint: bool = True) -> list[str]:

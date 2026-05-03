@@ -155,11 +155,11 @@ def build_silver_dataset(
     months: list[str] | None = None,
     dg_reference: pl.DataFrame | None = None,
     lead_times: list[int] = [60, 120, 240],
-) -> pl.DataFrame:
+) -> pl.LazyFrame:
     """Orquestra o pipeline Bronze → Silver e salva em outputs/silver/.
 
-    Processa cada mês individualmente para controle de memória, então concatena
-    e salva o resultado particionado por mês em outputs/silver/.
+    Processa cada mês individualmente para controle de memória. Cada mês é
+    salvo em parquet e liberado da RAM antes de processar o próximo.
 
     Args:
         months: lista de meses a processar (ex: ['jan', 'feb']). None = todos.
@@ -168,7 +168,7 @@ def build_silver_dataset(
         lead_times: janelas em minutos para is_dont_go_next_{N}m.
 
     Returns:
-        DataFrame Silver completo (carregado em memória após salvar em parquet).
+        LazyFrame apontando para os arquivos silver salvos (não carrega em RAM).
     """
     OUTPUT_SILVER.mkdir(parents=True, exist_ok=True)
 
@@ -184,7 +184,7 @@ def build_silver_dataset(
         print(f"  → {len(dg_reference)} eventos DG únicos encontrados")
 
     lf_apo = load_apontamentos()
-    parts = []
+    total_rows = 0
 
     for mes in months:
         t0 = time.perf_counter()
@@ -206,12 +206,12 @@ def build_silver_dataset(
 
         dt = time.perf_counter() - t0
         n_dg = df.filter(pl.col("Is_Dont_Go") == 1).height
+        total_rows += len(df)
         print(f"{len(df):,} registros | {n_dg:,} DG | {dt:.1f}s → {out_path.name}")
-        parts.append(df)
+        del df  # libera RAM imediatamente
 
-    result = pl.concat(parts)
-    print(f"\nSilver total: {len(result):,} registros em {len(months)} meses")
-    return result
+    print(f"\nSilver total: {total_rows:,} registros em {len(months)} meses")
+    return pl.scan_parquet(str(OUTPUT_SILVER / "silver_*.parquet"))
 
 
 # ── Auxiliares ────────────────────────────────────────────────────────────────

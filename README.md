@@ -67,6 +67,15 @@ uv sync
 uv run jupyter lab
 ```
 
+## Requisitos de Hardware
+
+O pipeline foi otimizado para rodar em máquinas com **16 GB de RAM**:
+
+- Processamento mês a mês — nunca carrega os 37M registros completos em memória
+- Pico estimado: ~1–1.5 GB por mês durante feature engineering
+- `build_silver_dataset()` libera cada mês da RAM após salvar em parquet
+- `build_feature_matrix()` usa DuckDB para stats globais + processa um mês por vez com overlap de 4h para rolling windows corretas
+
 ## Diferenciais da Solução
 
 - **Alarm Fingerprint:** identifica a sequência de alarmes que precede cada evento Don't Go
@@ -77,6 +86,7 @@ uv run jupyter lab
 ## Fases de Desenvolvimento
 
 - [x] Fase 1 — EDA (notebooks 01, 02, 03)
-- [ ] Fase 2 — Pipeline ETL (`transformation.py`)
-- [ ] Fase 3 — Feature Engineering e Modelo Preditivo
-- [ ] Fase 4 — Visualizações e Relatório Final
+- [x] Fase 2 — Pipeline ETL (`src/ingestion.py`, `src/transformation.py`) → `outputs/silver/`
+- [x] Fase 3 — Feature Engineering (`src/features.py`) → `outputs/gold/` *(notebook pendente)*
+- [x] Fase 4 — Modelagem ML (`src/models.py`) *(notebook + execução pendentes)*
+- [ ] Fase 5 — Visualizações e Relatório Final
