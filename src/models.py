@@ -267,14 +267,25 @@ def run_pipeline(
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1. Gold dataset
-    gold_path = GOLD_DIR / "gold_features.parquet"
-    if gold_path.exists() and not rebuild_gold:
-        print(f"Carregando gold existente: {gold_path}")
-        df, top_alarm_ids = pl.read_parquet(str(gold_path)), None
+    # 1. Gold dataset — verifica arquivos mensais (gold_{mes}.parquet)
+    from features import SILVER_DIR
+    if silver_months is None:
+        expected_months = [f.stem.replace("silver_", "") for f in sorted(SILVER_DIR.glob("silver_*.parquet"))]
     else:
-        print("Gerando gold dataset...")
-        df, top_alarm_ids = build_feature_matrix(silver_months=silver_months, save=True)
+        expected_months = silver_months
+
+    gold_files = [GOLD_DIR / f"gold_{m}.parquet" for m in expected_months]
+    gold_ready = all(f.exists() for f in gold_files) and not rebuild_gold
+
+    if gold_ready:
+        print(f"Carregando gold existente ({len(gold_files)} meses)...")
+        df = pl.read_parquet([str(f) for f in gold_files])
+        top_alarm_ids = [int(c.split("_")[-1]) for c in df.columns if c.startswith("fp_alarm_")]
+    else:
+        missing = [f.name for f in gold_files if not f.exists()]
+        print(f"Gerando gold dataset ({len(missing)} meses ausentes: {missing})...")
+        lf, top_alarm_ids = build_feature_matrix(silver_months=silver_months, save=True)
+        df = lf.collect()
 
     print(f"Gold: {len(df):,} registros × {len(df.columns)} colunas")
 

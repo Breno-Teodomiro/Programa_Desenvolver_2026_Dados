@@ -1,6 +1,14 @@
-"""Silver → Gold: feature engineering para o modelo preditivo de Don't Go."""
+"""Silver → Gold: feature engineering para o modelo preditivo de Don't Go.
 
+Processamento dia a dia para limitar uso de RAM:
+cada chunk = 1 dia de dados + overlap_hours horas do dia anterior
+(garante janelas rolantes de até 4h corretas sem carregar o mês inteiro).
+"""
+
+from datetime import datetime, timedelta
 from pathlib import Path
+
+import duckdb
 import polars as pl
 
 OUTPUT_GOLD = Path(__file__).parent.parent / "outputs" / "gold"
@@ -8,6 +16,7 @@ SILVER_DIR = Path(__file__).parent.parent / "outputs" / "silver"
 
 ROLLING_WINDOWS = [30, 60, 240]  # minutos
 TOP_N_FINGERPRINT = 30
+OVERLAP_HOURS = 4  # deve ser >= maior janela (240m = 4h)
 
 
 # ── Feature groups ────────────────────────────────────────────────────────────
@@ -42,8 +51,7 @@ def compute_temporal_features(lf: pl.LazyFrame) -> pl.LazyFrame:
 def compute_alarm_frequency_features(df: pl.DataFrame) -> pl.DataFrame:
     """Contagem e aceleração de alarmes por janela temporal anterior a cada evento.
 
-    Janelas: 30min, 1h (60m), 4h (240m). Usa rolling_sum_by por TAG.
-    closed='left' exclui o evento atual da janela (look-ahead free).
+    Janelas: 30min, 1h (60m), 4h (240m). closed='left' exclui o evento atual.
     """
     df = df.sort(["TAG", "Data_Evento"]).with_columns(
         pl.lit(1, dtype=pl.Int32).alias("_one")
@@ -72,7 +80,6 @@ def compute_alarm_frequency_features(df: pl.DataFrame) -> pl.DataFrame:
 
     df = df.with_columns(freq_exprs).drop("_one")
 
-    # Aceleração: quantas vezes a taxa de críticos na última hora excede a média das 4h
     eps = 1e-3
     return df.with_columns(
         (pl.col("n_criticos_60m") / ((pl.col("n_criticos_240m") / 4.0) + eps))
@@ -86,8 +93,7 @@ def compute_alarm_fingerprint(
 ) -> tuple[pl.DataFrame, list[int]]:
     """Presença (0/1) dos top-N alarmes na janela de 4h anterior a cada evento.
 
-    Produz colunas fp_alarm_{id} para os TOP_N_FINGERPRINT alarmes mais frequentes.
-    Se top_alarm_ids for fornecido, reutiliza a lista (para consistência treino/teste).
+    Se top_alarm_ids for fornecido, reutiliza a lista (consistência treino/teste).
     """
     if top_alarm_ids is None:
         top_alarm_ids = (
@@ -113,11 +119,8 @@ def compute_alarm_fingerprint(
     return df.with_columns(fingerprint_exprs), top_alarm_ids
 
 
-def compute_equipment_history_features(df: pl.DataFrame) -> pl.DataFrame:
-    """Label encoding de frota e flags de estado do apontamento."""
-    frotas = sorted(df["Tag_Frota"].drop_nulls().unique().to_list())
-    frota_map = {f: i for i, f in enumerate(frotas)}
-
+def _apply_frota_encoding(df: pl.DataFrame, frota_map: dict) -> pl.DataFrame:
+    """Aplica label encoding de frota e flags de estado do apontamento."""
     return df.with_columns([
         pl.col("Tag_Frota")
           .replace(frota_map, default=None)
@@ -134,15 +137,13 @@ def compute_equipment_history_features(df: pl.DataFrame) -> pl.DataFrame:
     ])
 
 
-# ── Orquestrador ─────────────────────────────────────────────────────────────
+# ── Estatísticas globais ──────────────────────────────────────────────────────
 
 def _compute_global_stats(
     silver_files: list[Path],
     top_alarm_ids: list[int] | None,
 ) -> tuple[list[int], dict[str, int]]:
-    """Passa rápida (LazyFrame) para obter top_alarm_ids e frota_map globais."""
-    import duckdb
-    paths = [str(f) for f in silver_files]
+    """Passa rápida (DuckDB) para obter top_alarm_ids e frota_map globais."""
     glob_expr = str(silver_files[0].parent / "silver_*.parquet")
 
     if top_alarm_ids is None:
@@ -164,22 +165,25 @@ def _compute_global_stats(
     return top_alarm_ids, frota_map
 
 
+# ── Orquestrador dia a dia ────────────────────────────────────────────────────
+
 def build_feature_matrix(
     silver_months: list[str] | None = None,
     top_alarm_ids: list[int] | None = None,
-    overlap_hours: int = 4,
+    overlap_hours: int = OVERLAP_HOURS,
     save: bool = True,
 ) -> tuple[pl.LazyFrame, list[int]]:
-    """Carrega silver mês a mês, aplica features e salva outputs/gold/gold_{mes}.parquet.
+    """Carrega silver DIA A DIA, aplica features e salva outputs/gold/gold_{mes}.parquet.
 
-    Processa um mês por vez para limitar uso de RAM. Inclui `overlap_hours` horas
-    do mês anterior como contexto para rolling windows, removendo-as do output.
+    Processa um dia por vez com `overlap_hours` horas do dia anterior como contexto
+    para as janelas rolantes, depois descarta o overlap do output final.
+    Uso de RAM ~proporcional a 1 dia de dados (~200K linhas) em vez do mês inteiro.
 
     Args:
-        silver_months: sufixos dos meses a usar (ex: ['jan','feb']). None = todos.
-        top_alarm_ids: IDs de alarme para fingerprint (reusar entre treino/teste).
-        overlap_hours: horas de overlap do mês anterior para rolling windows corretas.
-        save: se True, persiste em parquet por mês.
+        silver_months: sufixos dos meses (ex: ['jan','feb']). None = todos.
+        top_alarm_ids: IDs de alarme para fingerprint (consistência treino/teste).
+        overlap_hours: horas de contexto do dia anterior (deve ser >= 4).
+        save: se True, persiste em parquet por mês em outputs/gold/.
 
     Returns:
         (LazyFrame Gold apontando para os parquets salvos, lista de alarm_ids)
@@ -201,76 +205,109 @@ def build_feature_matrix(
 
     gold_files = []
     total_rows = 0
+    overlap_raw: pl.DataFrame | None = None  # últimas overlap_hours do dia anterior (raw silver)
 
-    for i, silver_file in enumerate(silver_files):
+    for silver_file in silver_files:
         mes = silver_file.stem.replace("silver_", "")
-        print(f"\n[{mes}] Processando...", end=" ", flush=True)
+        gold_out = OUTPUT_GOLD / f"gold_{mes}.parquet"
 
-        # Carrega mês atual
-        df = pl.read_parquet(str(silver_file))
+        if gold_out.exists():
+            print(f"\n[{mes}] gold já existe — pulando (carregando tail para overlap)")
+            # Carrega tail para dar continuidade ao overlap no próximo mês
+            silver_str = str(silver_file)
+            tail_result = duckdb.execute(f"""
+                SELECT * FROM read_parquet('{silver_str}')
+                WHERE Data_Evento >= (
+                    SELECT MAX(Data_Evento) - INTERVAL '{overlap_hours} hours'
+                    FROM read_parquet('{silver_str}')
+                )
+                ORDER BY TAG, Data_Evento
+            """).pl()
+            overlap_raw = tail_result if len(tail_result) > 0 else None
+            gold_files.append(gold_out)
+            continue
 
-        # Adiciona overlap do mês anterior para rolling windows corretas
-        if i > 0:
-            prev_file = silver_files[i - 1]
-            cutoff = df["Data_Evento"].min() - pl.duration(hours=overlap_hours)
-            tail = (
-                pl.scan_parquet(str(prev_file))
-                .filter(pl.col("Data_Evento") >= cutoff)
-                .collect()
+        # Obtém dias únicos deste mês via DuckDB
+        silver_str = str(silver_file)
+        days_result = duckdb.execute(f"""
+            SELECT DISTINCT CAST(Data_Evento AS DATE) AS d
+            FROM read_parquet('{silver_str}')
+            ORDER BY d
+        """).fetchall()
+        days = [row[0] for row in days_result]
+
+        print(f"\n[{mes}] {len(days)} dias a processar...")
+        daily_dfs: list[pl.DataFrame] = []
+
+        for day_idx, day in enumerate(days):
+            day_dt = datetime(day.year, day.month, day.day)
+            next_day_dt = day_dt + timedelta(days=1)
+
+            # Carrega dados do dia atual via DuckDB (push-down de predicado no parquet)
+            df_day = duckdb.execute(f"""
+                SELECT * FROM read_parquet('{silver_str}')
+                WHERE Data_Evento >= TIMESTAMP '{day_dt}'
+                  AND Data_Evento  < TIMESTAMP '{next_day_dt}'
+                ORDER BY TAG, Data_Evento
+            """).pl()
+
+            if len(df_day) == 0:
+                continue
+
+            # Monta chunk: overlap do dia anterior + dia atual
+            if overlap_raw is not None and len(overlap_raw) > 0:
+                df_chunk = pl.concat([overlap_raw, df_day]).sort(["TAG", "Data_Evento"])
+                n_overlap = len(overlap_raw)
+            else:
+                df_chunk = df_day.sort(["TAG", "Data_Evento"])
+                n_overlap = 0
+
+            # Feature engineering no chunk
+            df_chunk = compute_temporal_features(df_chunk.lazy()).collect()
+            df_chunk = compute_alarm_frequency_features(df_chunk)
+            df_chunk, _ = compute_alarm_fingerprint(df_chunk, top_alarm_ids=top_alarm_ids)
+            df_chunk = _apply_frota_encoding(df_chunk, frota_map)
+
+            # Remove linhas de overlap do output filtrando por data (slice por posição
+            # é incorreto pois o overlap está distribuído por TAG no frame ordenado)
+            if n_overlap > 0:
+                df_chunk = df_chunk.filter(
+                    pl.col("Data_Evento") >= pl.lit(day_dt).cast(pl.Datetime("us"))
+                )
+
+            daily_dfs.append(df_chunk)
+
+            # Atualiza overlap: últimas overlap_hours do dia atual (raw silver)
+            cutoff_ts = next_day_dt - timedelta(hours=overlap_hours)
+            overlap_raw = df_day.filter(
+                pl.col("Data_Evento") >= pl.lit(cutoff_ts).cast(pl.Datetime("us"))
             )
-            df = pl.concat([tail, df]).sort(["TAG", "Data_Evento"])
-            n_overlap = len(tail)
-            del tail
-        else:
-            n_overlap = 0
 
-        print(f"{len(df):,} registros (+{n_overlap} overlap)", end=" ", flush=True)
+            del df_chunk
 
-        df = compute_temporal_features(df.lazy()).collect()
-        df = compute_alarm_frequency_features(df)
-        df, _ = compute_alarm_fingerprint(df, top_alarm_ids=top_alarm_ids)
+            # Progresso a cada 5 dias
+            if (day_idx + 1) % 5 == 0 or (day_idx + 1) == len(days):
+                rows_so_far = sum(len(d) for d in daily_dfs)
+                print(f"  dia {day_idx + 1}/{len(days)} — {rows_so_far:,} gold rows acumuladas")
 
-        # Aplica frota_map global (em vez de derivar por mês)
-        df = df.with_columns([
-            pl.col("Tag_Frota")
-              .replace(frota_map, default=None)
-              .cast(pl.Int16)
-              .alias("frota_encoded"),
-            pl.col("apontamento_classe")
-              .eq("Operando").cast(pl.Int8).fill_null(0)
-              .alias("is_em_operacao"),
-            pl.col("apontamento_classe")
-              .str.contains("anuten").cast(pl.Int8).fill_null(0)
-              .alias("is_em_manutencao"),
-            pl.col("apontamento_id").is_null().cast(pl.Int8)
-              .alias("sem_apontamento"),
-        ])
+        if not daily_dfs:
+            print(f"  [AVISO] {mes}: nenhum dado processado")
+            continue
 
-        # Remove linhas de overlap do output final
-        if n_overlap > 0:
-            df = df.slice(n_overlap)
-
-        total_rows += len(df)
-        print(f"→ {len(df):,} gold rows", end="")
+        gold_month = pl.concat(daily_dfs)
+        total_rows += len(gold_month)
+        del daily_dfs
 
         if save:
-            out_path = OUTPUT_GOLD / f"gold_{mes}.parquet"
-            df.write_parquet(str(out_path))
-            gold_files.append(out_path)
-            print(f" → {out_path.name}")
-        else:
-            gold_files.append(silver_file)  # placeholder
-            print()
+            gold_month.write_parquet(str(gold_out))
+            gold_files.append(gold_out)
+            print(f"  → {len(gold_month):,} gold rows salvas em {gold_out.name}")
 
-        del df  # libera RAM imediatamente
+        del gold_month
 
-    print(f"\nGold total: {total_rows:,} registros em {len(silver_files)} meses")
+    print(f"\nGold total: {total_rows:,} registros em {len(gold_files)} meses")
 
-    if save:
-        lf = pl.scan_parquet([str(f) for f in gold_files])
-    else:
-        lf = pl.scan_parquet([str(f) for f in silver_files])  # fallback
-
+    lf = pl.scan_parquet([str(f) for f in gold_files])
     return lf, top_alarm_ids
 
 
@@ -281,6 +318,7 @@ def get_feature_columns(df: pl.DataFrame, include_fingerprint: bool = True) -> l
         "Alarme", "Criticidade", "Inicio_Turno", "Fim_Turno", "Valor",
         "Classe", "Nome_Operador_Anon", "Matricula_Operador_Hash",
         "apontamento_id", "apontamento_classe", "frota", "tipo_equipamento",
+        "Id_Alarme", "Id_Criticidade",
     }
     exclude_prefixes = (
         "Data_", "apontamento_inicio", "apontamento_fim",
