@@ -49,36 +49,36 @@ _LGB_PARAMS = {
 # ── Split temporal ────────────────────────────────────────────────────────────
 
 def temporal_train_test_split(
-    df: pl.DataFrame,
+    gold_files: list[Path],
     feature_cols: list[str],
     target_col: str = TARGET_COL,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, pd.Series]:
-    """Divide o gold dataset em treino (Jan-Abr), validação (Mai) e teste (Jun).
+    """Carrega cada split diretamente dos parquets mensais — nunca os 6 meses na RAM ao mesmo tempo.
 
-    O split é feito estritamente pelo mês do campo Data_Evento, garantindo que
-    dados futuros nunca influenciem o treino.
+    Split temporal estrito: Jan-Abr = treino, Mai = validação, Jun = teste.
 
     Returns:
         X_train, X_val, X_test, y_train, y_val, y_test (pandas, para LightGBM)
     """
-    month_col = df["Data_Evento"].dt.month()
+    _TRAIN = {"jan", "feb", "mar", "abr"}
+    _VAL = {"may"}
+    _TEST = {"jun"}
 
-    mask_train = month_col.is_in([1, 2, 3, 4])
-    mask_val = month_col.is_in([5])
-    mask_test = month_col.is_in([6])
+    needed = feature_cols + [target_col]
 
-    def _split(mask: pl.Series) -> tuple[pd.DataFrame, pd.Series]:
-        subset = df.filter(mask)
-        X = subset.select(feature_cols).to_pandas()
-        y = subset[target_col].cast(pl.Int8).to_pandas()
+    def _load(month_set: set[str]) -> tuple[pd.DataFrame, pd.Series]:
+        files = [f for f in gold_files if any(m in f.stem for m in month_set)]
+        df = pl.read_parquet([str(f) for f in files], columns=needed)
+        X = df.select(feature_cols).to_pandas()
+        y = df[target_col].cast(pl.Int8).to_pandas()
+        del df
         return X, y
 
-    X_train, y_train = _split(mask_train)
-    X_val, y_val = _split(mask_val)
-    X_test, y_test = _split(mask_test)
-
+    X_train, y_train = _load(_TRAIN)
     print(f"Treino  (Jan-Abr): {len(X_train):>9,} registros | positivos: {y_train.sum():,} ({y_train.mean():.2%})")
+    X_val, y_val = _load(_VAL)
     print(f"Validação   (Mai): {len(X_val):>9,} registros | positivos: {y_val.sum():,} ({y_val.mean():.2%})")
+    X_test, y_test = _load(_TEST)
     print(f"Teste        (Jun): {len(X_test):>9,} registros | positivos: {y_test.sum():,} ({y_test.mean():.2%})")
 
     return X_train, X_val, X_test, y_train, y_val, y_test
@@ -277,26 +277,25 @@ def run_pipeline(
     gold_files = [GOLD_DIR / f"gold_{m}.parquet" for m in expected_months]
     gold_ready = all(f.exists() for f in gold_files) and not rebuild_gold
 
-    if gold_ready:
-        print(f"Carregando gold existente ({len(gold_files)} meses)...")
-        df = pl.read_parquet([str(f) for f in gold_files])
-        top_alarm_ids = [int(c.split("_")[-1]) for c in df.columns if c.startswith("fp_alarm_")]
-    else:
+    if not gold_ready:
         missing = [f.name for f in gold_files if not f.exists()]
         print(f"Gerando gold dataset ({len(missing)} meses ausentes: {missing})...")
         lf, top_alarm_ids = build_feature_matrix(silver_months=silver_months, save=True)
-        df = lf.collect()
+        del lf
+    else:
+        print(f"Gold existente ({len(gold_files)} meses).")
 
-    print(f"Gold: {len(df):,} registros × {len(df.columns)} colunas")
-
-    # 2. Feature columns
-    feature_cols = get_feature_columns(df)
+    # 2. Feature columns — deduzidas do schema sem carregar dados
+    _schema = pl.read_parquet(str(gold_files[0]), n_rows=0)
+    feature_cols = get_feature_columns(_schema)
+    top_alarm_ids = [int(c.split("_")[-1]) for c in _schema.columns if c.startswith("fp_alarm_")]
+    del _schema
     print(f"Features selecionadas: {len(feature_cols)}")
 
-    # 3. Split temporal
+    # 3. Split temporal — cada split carrega só os meses necessários (evita OOM)
     print("\n--- Split Temporal ---")
     X_train, X_val, X_test, y_train, y_val, y_test = temporal_train_test_split(
-        df, feature_cols
+        gold_files, feature_cols
     )
 
     # 4. Treino
@@ -316,6 +315,11 @@ def run_pipeline(
     # 8. Salvar modelo
     save_model(model)
 
+    # Carrega Jun com colunas necessárias para visualizações do notebook 05
+    _test_files = [f for f in gold_files if "jun" in f.stem]
+    _needed = feature_cols + [TARGET_COL, "Data_Evento"]
+    df_test = pl.read_parquet([str(f) for f in _test_files], columns=_needed)
+
     return {
         "model": model,
         "metrics": metrics,
@@ -323,5 +327,5 @@ def run_pipeline(
         "X_shap": X_shap,
         "feature_cols": feature_cols,
         "threshold": best_threshold,
-        "df": df,
+        "df": df_test,
     }
