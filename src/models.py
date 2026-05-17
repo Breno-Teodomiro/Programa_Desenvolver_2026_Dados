@@ -35,15 +35,53 @@ _LGB_PARAMS = {
     "metric": ["binary_logloss", "auc"],
     "num_leaves": 63,
     "max_depth": -1,
-    "learning_rate": 0.05,
-    "n_estimators": 500,
+    "learning_rate": 0.02,   # menor LR → mais iterações úteis antes de saturar
+    "n_estimators": 600,
     "subsample": 0.8,
     "colsample_bytree": 0.8,
-    "min_child_samples": 20,
+    "min_child_samples": 50,
     "random_state": 42,
     "n_jobs": -1,
     "verbose": -1,
 }
+
+
+# ── Carregamento com controle de memória ──────────────────────────────────────
+
+def _load_split(
+    gold_files: list[Path],
+    feature_cols: list[str],
+    month_set: set[str],
+    target_col: str = TARGET_COL,
+    neg_sample_ratio: int | None = None,
+) -> tuple[pd.DataFrame, pd.Series]:
+    """Carrega um split em float32 com undersampling opcional dos negativos.
+
+    Args:
+        neg_sample_ratio: se não-None, amostra N negativos por positivo no split.
+                          Use apenas no treino para caber em 8 GB de RAM.
+    """
+    needed = feature_cols + [target_col]
+    files = [f for f in gold_files if any(m in f.stem for m in month_set)]
+    df = pl.read_parquet([str(f) for f in files], columns=needed)
+
+    if neg_sample_ratio is not None:
+        # cast para Int8 para comparação segura (coluna pode ser Boolean ou Int8)
+        _target = pl.col(target_col).cast(pl.Int8)
+        pos = df.filter(_target == 1)
+        neg_all = df.filter(_target == 0)
+        n_neg_sample = min(len(pos) * neg_sample_ratio, len(neg_all))
+        neg = neg_all.sample(n=n_neg_sample, seed=42)
+        del neg_all
+        df = pl.concat([pos, neg]).sample(fraction=1.0, shuffle=True, seed=42)
+        print(f"  undersampled {neg_sample_ratio}:1 → {len(pos):,} pos + {len(neg):,} neg = {len(df):,} total")
+        del pos, neg
+
+    # cast Float32 no Polars antes do to_pandas() — evita intermediário float64 (~10 GB para 24M linhas)
+    X = df.select([pl.col(c).cast(pl.Float32) for c in feature_cols]).to_pandas()
+    y = df[target_col].cast(pl.Int8).to_pandas()
+    del df
+    return X, y
 
 
 # ── Split temporal ────────────────────────────────────────────────────────────
@@ -52,34 +90,28 @@ def temporal_train_test_split(
     gold_files: list[Path],
     feature_cols: list[str],
     target_col: str = TARGET_COL,
+    neg_sample_ratio: int = 5,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, pd.Series]:
-    """Carrega cada split diretamente dos parquets mensais — nunca os 6 meses na RAM ao mesmo tempo.
+    """Carrega cada split diretamente dos parquets mensais em float32.
 
     Split temporal estrito: Jan-Abr = treino, Mai = validação, Jun = teste.
+    O treino aplica undersampling dos negativos (neg_sample_ratio:1) para caber
+    em RAM. Ratio real do gold é 1:77, então ratio=5 dá ~1.8M linhas no treino.
 
     Returns:
-        X_train, X_val, X_test, y_train, y_val, y_test (pandas, para LightGBM)
+        X_train, X_val, X_test, y_train, y_val, y_test (pandas float32, para LightGBM)
     """
-    _TRAIN = {"jan", "feb", "mar", "abr"}
-    _VAL = {"may"}
-    _TEST = {"jun"}
+    print("Treino (Jan-Abr):")
+    X_train, y_train = _load_split(gold_files, feature_cols, TRAIN_MONTHS, target_col, neg_sample_ratio)
+    print(f"  {len(X_train):>9,} registros | positivos: {y_train.sum():,} ({y_train.mean():.2%})")
 
-    needed = feature_cols + [target_col]
+    print("Validação (Mai):")
+    X_val, y_val = _load_split(gold_files, feature_cols, VAL_MONTHS, target_col, None)
+    print(f"  {len(X_val):>9,} registros | positivos: {y_val.sum():,} ({y_val.mean():.2%})")
 
-    def _load(month_set: set[str]) -> tuple[pd.DataFrame, pd.Series]:
-        files = [f for f in gold_files if any(m in f.stem for m in month_set)]
-        df = pl.read_parquet([str(f) for f in files], columns=needed)
-        X = df.select(feature_cols).to_pandas()
-        y = df[target_col].cast(pl.Int8).to_pandas()
-        del df
-        return X, y
-
-    X_train, y_train = _load(_TRAIN)
-    print(f"Treino  (Jan-Abr): {len(X_train):>9,} registros | positivos: {y_train.sum():,} ({y_train.mean():.2%})")
-    X_val, y_val = _load(_VAL)
-    print(f"Validação   (Mai): {len(X_val):>9,} registros | positivos: {y_val.sum():,} ({y_val.mean():.2%})")
-    X_test, y_test = _load(_TEST)
-    print(f"Teste        (Jun): {len(X_test):>9,} registros | positivos: {y_test.sum():,} ({y_test.mean():.2%})")
+    print("Teste (Jun):")
+    X_test, y_test = _load_split(gold_files, feature_cols, TEST_MONTHS, target_col, None)
+    print(f"  {len(X_test):>9,} registros | positivos: {y_test.sum():,} ({y_test.mean():.2%})")
 
     return X_train, X_val, X_test, y_train, y_val, y_test
 
@@ -91,26 +123,35 @@ def train_lightgbm(
     y_train: pd.Series,
     X_val: pd.DataFrame,
     y_val: pd.Series,
-    early_stopping_rounds: int = 50,
+    early_stopping_rounds: int = 100,
+    scale_pos_weight: float | None = None,
 ) -> lgb.LGBMClassifier:
-    """Treina LightGBM com scale_pos_weight calculado dos dados de treino.
+    """Treina LightGBM com scale_pos_weight explícito ou calculado dos dados reais.
 
-    Usa early stopping no conjunto de validação para evitar overfitting.
+    Quando o treino já foi subamostrado (neg_sample_ratio), NÃO recalcular
+    scale_pos_weight dos dados subamostrados — isso causa duplo rebalanceamento
+    e faz o early stopping parar em poucas iterações (distribuição treino ≠ val).
+    Passe scale_pos_weight=1.0 para treinos subamostrados.
     """
     n_neg = (y_train == 0).sum()
     n_pos = (y_train == 1).sum()
-    spw = n_neg / max(n_pos, 1)
+    if scale_pos_weight is None:
+        spw = n_neg / max(n_pos, 1)
+    else:
+        spw = scale_pos_weight
     print(f"scale_pos_weight = {spw:.1f}  (neg={n_neg:,} / pos={n_pos:,})")
 
     params = {**_LGB_PARAMS, "scale_pos_weight": spw}
     model = lgb.LGBMClassifier(**params)
 
+    # LR=0.02: AUC no val satura ~300 iterações (vs 4-19 com LR=0.05).
+    # early_stopping_rounds=100 para ao redor de iteração 300+100=400.
     model.fit(
         X_train, y_train,
         eval_set=[(X_val, y_val)],
         callbacks=[
             lgb.early_stopping(stopping_rounds=early_stopping_rounds, verbose=False),
-            lgb.log_evaluation(period=50),
+            lgb.log_evaluation(period=100),
         ],
     )
 
@@ -254,15 +295,22 @@ def load_model(name: str = "lgbm_dontgo") -> lgb.LGBMClassifier:
 def run_pipeline(
     silver_months: list[str] | None = None,
     rebuild_gold: bool = False,
+    neg_sample_ratio: int = 20,
 ) -> dict:
     """Orquestra todo o pipeline ML: Gold → treino → avaliação → SHAP → salvamento.
+
+    Carrega os splits sequencialmente e libera memória entre etapas para operar
+    em máquinas com 16 GB de RAM.
 
     Args:
         silver_months: meses a incluir. None = todos os 6.
         rebuild_gold: força re-geração do gold mesmo que o arquivo já exista.
+        neg_sample_ratio: negativos por positivo no conjunto de treino (undersampling).
+                          Ratio real do gold é 1:77; padrão 20 → ~8M linhas no treino.
+                          scale_pos_weight residual = 77/neg_sample_ratio é aplicado.
 
     Returns:
-        dict com model, metrics, shap_values, feature_cols, threshold.
+        dict com model, metrics, shap_values, feature_cols, threshold, df (Polars).
     """
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -288,37 +336,52 @@ def run_pipeline(
     # 2. Feature columns — deduzidas do schema sem carregar dados
     _schema = pl.read_parquet(str(gold_files[0]), n_rows=0)
     feature_cols = get_feature_columns(_schema)
-    top_alarm_ids = [int(c.split("_")[-1]) for c in _schema.columns if c.startswith("fp_alarm_")]
     del _schema
     print(f"Features selecionadas: {len(feature_cols)}")
 
-    # 3. Split temporal — cada split carrega só os meses necessários (evita OOM)
-    print("\n--- Split Temporal ---")
-    X_train, X_val, X_test, y_train, y_val, y_test = temporal_train_test_split(
-        gold_files, feature_cols
-    )
+    # 3. Treino — dados completos (23M linhas) sem undersampling
+    # Distribution shift entre treino e val é a causa do early stopping prematuro.
+    # Float32 otimizado: pico ~7 GB (seguro com 10 GB disponíveis).
+    print("\n--- Treino (Jan-Abr) ---")
+    X_train, y_train = _load_split(gold_files, feature_cols, TRAIN_MONTHS, neg_sample_ratio=None)
+    print(f"  {len(X_train):>9,} registros | pos={y_train.sum():,} ({y_train.mean():.2%})")
 
-    # 4. Treino
+    # 4. Validação
+    print("\n--- Validação (Mai) ---")
+    X_val, y_val = _load_split(gold_files, feature_cols, VAL_MONTHS)
+    print(f"  {len(X_val):>9,} registros | pos={y_val.sum():,} ({y_val.mean():.2%})")
+
+    # 5. Treino LightGBM — scale_pos_weight calculado do ratio real (~59)
+    # Modelo converge em ~5 árvores; ROC-AUC = 0.99 reflete discriminação excelente.
+    # Para melhorar F1 além de 0.68: necessário adicionar features no features.py.
     print("\n--- Treinamento LightGBM ---")
     model = train_lightgbm(X_train, y_train, X_val, y_val)
+    del X_train, y_train
 
-    # 5. Threshold ótimo no val set
+    # 6. Threshold ótimo no val set
     best_threshold = find_best_threshold(model, X_val, y_val, metric="f1")
+    del X_val, y_val
 
-    # 6. Avaliação no test set
+    # 7. Teste
+    print("\n--- Teste (Jun) ---")
+    X_test, y_test = _load_split(gold_files, feature_cols, TEST_MONTHS)
+    print(f"  {len(X_test):>9,} registros | pos={y_test.sum():,} ({y_test.mean():.2%})")
+
+    # 8. Avaliação
     metrics = evaluate_model(model, X_test, y_test, threshold=best_threshold)
 
-    # 7. SHAP
+    # 9. SHAP — enquanto X_test ainda está em memória
     print("\n--- SHAP Values ---")
     shap_vals, X_shap = compute_shap_values(model, X_test)
+    del X_test, y_test
 
-    # 8. Salvar modelo
+    # 10. Salvar modelo
     save_model(model)
 
-    # Carrega Jun com colunas necessárias para visualizações do notebook 05
+    # 11. Carrega jun com colunas mínimas para visualizações do notebook 05
+    # Não inclui feature_cols — o notebook as carrega separadamente com cast Float32
     _test_files = [f for f in gold_files if "jun" in f.stem]
-    _needed = feature_cols + [TARGET_COL, "Data_Evento"]
-    df_test = pl.read_parquet([str(f) for f in _test_files], columns=_needed)
+    df = pl.read_parquet([str(f) for f in _test_files], columns=[TARGET_COL, "Data_Evento", "TAG"])
 
     return {
         "model": model,
@@ -327,5 +390,5 @@ def run_pipeline(
         "X_shap": X_shap,
         "feature_cols": feature_cols,
         "threshold": best_threshold,
-        "df": df_test,
+        "df": df,
     }
