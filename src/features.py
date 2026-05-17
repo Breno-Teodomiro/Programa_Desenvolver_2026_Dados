@@ -14,7 +14,7 @@ import polars as pl
 OUTPUT_GOLD = Path(__file__).parent.parent / "outputs" / "gold"
 SILVER_DIR = Path(__file__).parent.parent / "outputs" / "silver"
 
-ROLLING_WINDOWS = [30, 60, 240]  # minutos
+ROLLING_WINDOWS = [15, 30, 60, 240]  # minutos — 15m captura spikes imediatos pré-DG
 TOP_N_FINGERPRINT = 30
 OVERLAP_HOURS = 4  # deve ser >= maior janela (240m = 4h)
 
@@ -81,10 +81,44 @@ def compute_alarm_frequency_features(df: pl.DataFrame) -> pl.DataFrame:
     df = df.with_columns(freq_exprs).drop("_one")
 
     eps = 1e-3
-    return df.with_columns(
+    return df.with_columns([
+        # aceleração de alarmes críticos (já existia)
         (pl.col("n_criticos_60m") / ((pl.col("n_criticos_240m") / 4.0) + eps))
-        .alias("aceleracao_criticos")
+        .alias("aceleracao_criticos"),
+        # aceleração de DG: taxa 60m vs taxa média 240m — detecta clustering iminente
+        (pl.col("n_dg_60m") / ((pl.col("n_dg_240m") / 4.0) + eps))
+        .alias("aceleracao_dg"),
+    ])
+
+
+def compute_recency_features(df: pl.DataFrame) -> pl.DataFrame:
+    """Tempo em minutos desde o último evento Don't Go por equipamento.
+
+    Captura recência: se houve DG recente, o risco de novo DG é mais alto.
+    Valor = minutos desde o último Is_Dont_Go=1 anterior ao evento atual.
+    Nulo (sem DG anterior no histórico carregado) → preenchido com 9999.
+    """
+    df = df.sort(["TAG", "Data_Evento"])
+
+    # timestamp do último DG anterior a cada evento (exclusive)
+    last_dg_ts = (
+        pl.when(pl.col("Is_Dont_Go").cast(pl.Int8) == 1)
+        .then(pl.col("Data_Evento"))
+        .otherwise(None)
+        .shift(1)
+        .forward_fill()
+        .over("TAG")
     )
+
+    min_desde_ultimo_dg = (
+        (pl.col("Data_Evento") - last_dg_ts)
+        .dt.total_minutes()
+        .cast(pl.Float32)
+        .fill_null(9999.0)
+        .clip(lower_bound=0.0)
+    )
+
+    return df.with_columns(min_desde_ultimo_dg.alias("min_desde_ultimo_dg"))
 
 
 def compute_alarm_fingerprint(
@@ -265,6 +299,7 @@ def build_feature_matrix(
             # Feature engineering no chunk
             df_chunk = compute_temporal_features(df_chunk.lazy()).collect()
             df_chunk = compute_alarm_frequency_features(df_chunk)
+            df_chunk = compute_recency_features(df_chunk)
             df_chunk, _ = compute_alarm_fingerprint(df_chunk, top_alarm_ids=top_alarm_ids)
             df_chunk = _apply_frota_encoding(df_chunk, frota_map)
 
