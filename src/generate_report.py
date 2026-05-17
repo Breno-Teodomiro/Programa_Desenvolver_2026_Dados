@@ -26,7 +26,7 @@ PARTICIPANTE = {
     "grupo":       "Don't Go Predictor",
     "nome1":       "Breno Teodomiro de Carvalho Neto",
     "inst1":       "Vale S.A.",
-    "email1":      "insights.jobs.ia@gmail.com",
+    "email1":      "admbrenoteodomiro@hotmail.com",
 }
 
 
