@@ -24,7 +24,7 @@ VALE_GREEN = RGBColor(0x00, 0xA6, 0x50)
 # ── Dados do participante (editar antes de submeter) ──────────────────────────
 PARTICIPANTE = {
     "grupo":       "Don't Go Predictor",
-    "nome1":       "[Seu Nome Completo]",
+    "nome1":       "Breno Teodomiro de Carvalho Neto",
     "inst1":       "Vale S.A.",
     "email1":      "insights.jobs.ia@gmail.com",
 }
