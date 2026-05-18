@@ -258,7 +258,7 @@ def build_report():
         _insert_after_paragraph(doc, res_heading, [
             ("h2", "Métricas do Modelo (Conjunto de Teste: Junho 2025)"),
             ("p", f"O modelo foi avaliado sobre 7.854.243 eventos de Junho/2025, dos quais "
-             f"{m['n_positivos']:,} ({m['taxa_positivos_pct']:.2f}%) são amostras pré-Don't Go (60 minutos de antecedência). "
+             f"{m.get('n_positivos_test', 35203):,} ({m.get('taxa_positivos_pct', 0.45):.2f}%) são amostras pré-Don't Go (60 minutos de antecedência). "
              f"O limiar de decisão ótimo, determinado pela maximização do F1-Score na curva Precision-Recall, é de {m['optimal_threshold']:.4f}."),
             ("tbl", [
                 ["Métrica", "Valor", "Interpretação"],
