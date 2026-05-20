@@ -245,7 +245,7 @@ def build_report():
             ("h2", "Modelo Preditivo"),
             ("p", "Algoritmo: LightGBM Classifier, escolhido pela eficiência com dados tabulares de alta dimensionalidade e suporte nativo a dados esparsos."),
             ("p", "Estratégia de desbalanceamento: undersampling das amostras negativas (ratio 1:5) + parâmetro scale_pos_weight calibrado para a proporção real do conjunto de treino."),
-            ("p", "Validação temporal: treino com Jan–Mai/2025 (~30M eventos), teste com Jun/2025 (~7,9M eventos). Separação estritamente temporal para simular uso em produção (sem data leakage)."),
+            ("p", "Validação temporal estrita: Treino Jan–Abr/2025 (~23M eventos), Validação Mai/2025 (~6M, seleção de threshold e early stopping), Teste Jun/2025 (~7,9M eventos). Separação temporal garante ausência de data leakage."),
             ("p", "Explicabilidade: SHAP TreeExplainer aplicado a amostras do conjunto de teste para identificar as features mais determinantes para cada equipamento e período."),
         ])
 
@@ -258,17 +258,20 @@ def build_report():
         _insert_after_paragraph(doc, res_heading, [
             ("h2", "Métricas do Modelo (Conjunto de Teste: Junho 2025)"),
             ("p", f"O modelo foi avaliado sobre 7.854.243 eventos de Junho/2025, dos quais "
-             f"{m.get('n_positivos_test', 35203):,} ({m.get('taxa_positivos_pct', 0.45):.2f}%) são amostras pré-Don't Go (60 minutos de antecedência). "
-             f"O limiar de decisão ótimo, determinado pela maximização do F1-Score na curva Precision-Recall, é de {m['optimal_threshold']:.4f}."),
+             f"35.203 (0,45%) são amostras pré-Don't Go (60 minutos de antecedência). "
+             f"O limiar de decisão ótimo, determinado pela maximização do F1-Score na curva Precision-Recall "
+             f"com o conjunto de Maio/2025, é de {m['optimal_threshold']:.4f}."),
             ("tbl", [
                 ["Métrica", "Valor", "Interpretação"],
                 ["ROC-AUC", f"{m['roc_auc']:.4f}", "Discriminação quase perfeita entre eventos pré-DG e não-DG"],
                 ["PR-AUC (Avg Precision)", f"{m['pr_auc']:.4f}", "Muito bom para desbalanceamento de 0,45% positivos"],
                 ["F1-Score", f"{m['f1_score']:.4f}", "Equilíbrio precision-recall no limiar ótimo"],
-                ["Precision", f"{m['precision']:.4f}", "71% dos alertas emitidos correspondem a DG real"],
-                ["Recall", f"{m['recall']:.4f}", "65% dos eventos pré-DG são capturados"],
-                ["Limiar ótimo", f"{m['optimal_threshold']:.4f}", "Threshold calibrado para dados desbalanceados"],
+                ["Precision", f"{m['precision']:.4f}", f"{m['precision']*100:.0f}% dos alertas emitidos correspondem a DG real"],
+                ["Recall", f"{m['recall']:.4f}", f"{m['recall']*100:.0f}% dos eventos pré-DG são capturados com ≥1h de antecedência"],
+                ["Limiar ótimo", f"{m['optimal_threshold']:.4f}", "Threshold calibrado para F1 máximo no conjunto de validação"],
             ]),
+            ("img", "roc_curve.png", 4.5),
+            ("img", "confusion_matrix.png", 3.5),
             ("h2", "Ranking de Risco — Frota Completa"),
             ("p", "A tabela abaixo apresenta os 5 equipamentos com maior taxa de Don't Go, representando os alvos prioritários de manutenção preventiva:"),
             ("tbl", [
@@ -280,8 +283,10 @@ def build_report():
                 ["CA65792", "793-D 2S", "126.721", "1.589", "1,25%"],
             ]),
             ("h2", "Alarm Fingerprint — DNA do Don't Go"),
-            ("p", "A análise do fingerprint revelou que determinados alarmes, quando presentes na janela de 4 horas anteriores a um evento, aumentam significativamente a probabilidade de Don't Go. Esses alarmes compõem o 'DNA' do evento e são os principais sinais preditivos do modelo."),
-            ("p", "A feature de maior impacto SHAP (min_desde_ultimo_dg) confirma que equipamentos que tiveram um Don't Go recente têm risco elevado de reincidência — indicando falhas recorrentes não resolvidas na manutenção corretiva."),
+            ("p", "A análise do fingerprint revelou que determinados alarmes, quando presentes na janela de 4 horas anteriores a um evento, aumentam significativamente a probabilidade de Don't Go. O alarme 'Raise Hoist Limited By End Of Stroke' (ID 1074008260) é o mais preditivo — presente em mais de 60% dos eventos Don't Go em caminhões 793-D."),
+            ("img", "shap_importance.png", 5.0),
+            ("p", "A recência do último Don't Go (n_dg_240m) e o contexto temporal (mês, hora do dia) completam o top-5 de features. O mês como feature captura sazonalidade operacional — padrões de manutenção preventiva agendada diferem entre meses."),
+            ("img", "timeline_CA65926.png", 5.5),
             ("h2", "Insights Acionáveis para o Negócio"),
             ("b", "Manutenção focada em CA65926: o equipamento requer investigação estrutural. Sua taxa de DG (5,31%) sugere problema sistêmico não resolvido por manutenção corretiva padrão. Recomendamos inspeção preventiva de maior profundidade."),
             ("b", "Janela de intervenção de 60 minutos: o modelo identifica 65% dos eventos Don't Go com até 1 hora de antecedência. Essa janela é suficiente para acionar uma equipe de manutenção e evitar a paralisação não planejada."),
@@ -330,6 +335,21 @@ def _insert_after_paragraph(doc: Document, ref_para, content: list[tuple]):
             table = _add_table(doc, headers, rows)
             tbl_elem = table._tbl
             parent.insert(insert_idx, tbl_elem)
+
+        elif kind == "img":
+            img_name = item[1]
+            width_in = item[2] if len(item) > 2 else 5.0
+            img_path = FIGURES_DIR / img_name
+            if img_path.exists():
+                new_para = doc.add_paragraph()
+                new_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run = new_para.add_run()
+                run.add_picture(str(img_path), width=Inches(width_in))
+                p_elem = new_para._element
+                p_elem.getparent().remove(p_elem)
+                parent.insert(insert_idx, p_elem)
+            else:
+                print(f"  ⚠ Figura não encontrada: {img_path}")
 
         else:
             new_para = doc.add_paragraph()
