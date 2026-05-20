@@ -53,7 +53,8 @@ Split temporal estrito: Treino Jan–Abr/2025 | Validação Mai/2025 | Teste Jun
 │   ├── 02_EDA_telemetria.ipynb     # Análise dos alarmes e Don't Go
 │   ├── 03_regras_negocio.ipynb     # Regras OEM de disparo do Don't Go
 │   ├── 04_feature_engineering.ipynb # Feature engineering e análise do dataset Gold
-│   └── 05_modelo_preditivo.ipynb   # Modelo final, métricas e SHAP
+│   ├── 05_modelo_preditivo.ipynb   # Modelo final, métricas e SHAP
+│   └── 06_insights_negocio.ipynb  # Baseline, impacto operacional e recomendações
 ├── src/
 │   ├── ingestion.py         # Raw → Bronze (carregamento e validação)
 │   ├── transformation.py    # Bronze → Silver (joins, flags pré-DG)
