@@ -1,13 +1,11 @@
-"""Retreino otimizado do modelo LightGBM para maximizar F1-Score.
+"""Retreino do modelo LightGBM com os parâmetros finais do DontGo Predictor.
 
-Correções em relação ao modelo anterior:
-1. scale_pos_weight=1.0 — sem duplo rebalanceamento (undersampling já resolve)
-2. neg_sample_ratio=20 — mais dados de treino (4x), mantendo RAM segura
-3. Mai incluído no treino (jan-mai), Jun como teste
-4. reg_lambda=1.0 — regularização L2 para reduzir overfitting
-5. Early stopping com 20% do treino como eval set interno
-6. learning_rate=0.05 + n_estimators=1000 com early stopping
+Parâmetros do modelo em produção (model_metrics.json):
+  num_leaves=255, scale_pos_weight=40, learning_rate=0.05
+  min_child_samples=50, neg_ratio=5, treino jan-abr, val mai, teste jun
+  Resultado: F1=0.6886, ROC-AUC=0.9923, PR-AUC=0.6739 no teste (jun/2025)
 
+Use este script para reproduzir o modelo a partir dos dados Gold.
 Uso: uv run python3 src/retrain_optimized.py
 """
 
@@ -36,9 +34,10 @@ MODEL_OUT = GOLD_DIR / "lgbm_dontgo.pkl"
 MODEL_BAK = GOLD_DIR / "lgbm_dontgo_v1_backup.pkl"
 TARGET_COL = "is_dont_go_next_60m"
 
-TRAIN_MONTHS = {"jan", "feb", "mar", "abr", "may"}
+TRAIN_MONTHS = {"jan", "feb", "mar", "abr"}
+VAL_MONTHS   = {"may"}
 TEST_MONTHS  = {"jun"}
-NEG_RATIO    = 5        # 5:1 negativos por positivo no treino (mais rápido, mais recall)
+NEG_RATIO    = 5        # 5:1 negativos por positivo no treino
 RANDOM_STATE = 42
 
 
@@ -47,15 +46,14 @@ RANDOM_STATE = 42
 LGB_PARAMS = {
     "objective":         "binary",
     "metric":            ["binary_logloss", "auc"],
-    "num_leaves":        63,
+    "num_leaves":        255,         # modelo final: profundidade elevada captura padrões complexos
     "max_depth":         -1,
     "learning_rate":     0.05,
-    "n_estimators":      1000,        # early stopping vai parar antes
+    "n_estimators":      1000,        # early stopping para bem antes (best_iter=50)
     "subsample":         0.8,
     "colsample_bytree":  0.8,
-    "min_child_samples": 100,         # mais conservador (era 50)
-    "reg_lambda":        1.0,         # L2 — evita overfitting (era 0)
-    "scale_pos_weight":  10.0,        # neg_ratio=5 + spw=10 → boa cobertura de positivos
+    "min_child_samples": 50,
+    "scale_pos_weight":  40.0,        # ajustado para maximize F1 no val (mai/2025)
     "random_state":      RANDOM_STATE,
     "n_jobs":            -1,
     "verbose":           -1,
@@ -111,19 +109,18 @@ def train():
         pickle.dump(old_model, f)
     print(f"Backup salvo → {MODEL_BAK.name}")
 
-    # Treino
+    # Treino (jan-abr)
     print(f"\nCarregando treino ({', '.join(sorted(TRAIN_MONTHS))})...")
     X_train, y_train = _load_months(TRAIN_MONTHS, feature_cols, neg_ratio=NEG_RATIO)
     print(f"  RAM treino: ~{X_train.memory_usage(deep=True).sum() / 1e6:.0f} MB")
     print(f"  Distribuição: {y_train.sum():,} pos / {(y_train==0).sum():,} neg")
 
-    # Eval set interno: 15% do treino (sem vazar o teste)
-    n_eval = max(int(len(X_train) * 0.15), 1000)
-    eval_idx = np.random.default_rng(RANDOM_STATE).choice(len(X_train), n_eval, replace=False)
-    train_idx = np.setdiff1d(np.arange(len(X_train)), eval_idx)
+    # Validação (mai) — split temporal estrito, sem vazar o teste (jun)
+    print(f"\nCarregando validação ({', '.join(sorted(VAL_MONTHS))})...")
+    X_eval, y_eval = _load_months(VAL_MONTHS, feature_cols, neg_ratio=None)
+    print(f"  {len(X_eval):,} registros | {y_eval.sum():,} pos ({y_eval.mean():.2%})")
 
-    X_eval, y_eval   = X_train.iloc[eval_idx], y_train.iloc[eval_idx]
-    X_fit,  y_fit    = X_train.iloc[train_idx], y_train.iloc[train_idx]
+    X_fit, y_fit = X_train, y_train
     del X_train, y_train
 
     print(f"\nTreinando (fit={len(X_fit):,} / eval={len(X_eval):,})...")
@@ -194,10 +191,13 @@ def train():
             "recall": round(rec, 4),
             "n_features": len(feature_cols),
             "algorithm": "LightGBM",
-            "train_months": "jan-mai_2025",
+            "train_months": "jan-abr_2025",
+            "eval_month": "mai_2025",
             "neg_sample_ratio": NEG_RATIO,
-            "scale_pos_weight": LGB_PARAMS["scale_pos_weight"],
-            "best_iteration": int(model.best_iteration_),
+            "scale_pos_weight":  LGB_PARAMS["scale_pos_weight"],
+            "num_leaves":        LGB_PARAMS["num_leaves"],
+            "min_child_samples": LGB_PARAMS["min_child_samples"],
+            "best_iteration":    int(model.best_iteration_),
         }
         metrics_path = Path(__file__).parent.parent / "outputs" / "reports" / "model_metrics.json"
         with open(metrics_path, "w") as fp:
