@@ -66,7 +66,7 @@ Split temporal estrito: Treino Jan–Abr/2025 | Validação Mai/2025 | Teste Jun
 ├── outputs/
 │   ├── silver/              # Dados Bronze → Silver (222 MB, 6 meses)
 │   ├── gold/                # Feature matrix + modelo (383 MB + lgbm_dontgo.pkl)
-│   ├── dashboards/          # 6 dashboards HTML interativos
+│   ├── dashboards/          # 9 dashboards HTML interativos
 │   ├── figures/             # Gráficos PNG (ROC, SHAP, confusão, timeline)
 │   └── reports/             # Relatório final Word + model_metrics.json
 ├── PRD.md                   # Definição do produto e objetivos
@@ -129,13 +129,15 @@ Parâmetros do modelo final:
 - `min_child_samples=50`, `neg_sample_ratio=5`
 - Treino: Jan–Abr/2025 | Validação: Mai/2025 | Teste: Jun/2025
 
-### 5. Executar notebook de modelagem e visualizações
+### 5. Executar notebooks de modelagem e insights
 
 ```bash
-# Notebook 04: análise das features Gold
-# Notebook 05: avalia modelo salvo, gera SHAP e gráficos
 uv run jupyter lab
 ```
+
+- `notebooks/04_feature_engineering.ipynb` — análise das 54 features Gold
+- `notebooks/05_modelo_preditivo.ipynb` — avalia modelo salvo, gera SHAP e gráficos (F1=0.6886)
+- `notebooks/06_insights_negocio.ipynb` — baseline vs LightGBM, impacto operacional, recomendações
 
 ### 6. Gerar dashboards HTML
 
@@ -182,6 +184,8 @@ Raw (parquet)
 - **Pipeline Medallion:** arquitetura de nível produção com camadas Bronze → Silver → Gold
 - **Explicabilidade por SHAP:** justificativa de cada previsão para o negócio
 - **Validação temporal estrita:** sem vazamento de informação futuro no treino
+- **Comparação com baseline:** regra estática F1=0.1091 vs LightGBM F1=0.6886 — 6.3× de melhora, precisão 12×
+- **Dashboard executivo:** `09_story_dashboard.html` — narrativa completa do projeto para tomadores de decisão
 
 ## Requisitos de Hardware
 
@@ -198,3 +202,4 @@ O pipeline foi otimizado para rodar em máquinas com **16 GB de RAM**:
 - [x] Fase 3 — Feature Engineering Gold (`src/features.py`) → `outputs/gold/`
 - [x] Fase 4 — Modelagem ML (`src/models.py`, `src/retrain_optimized.py`) → F1=0.6886, ROC-AUC=0.9923
 - [x] Fase 5 — Visualizações e Relatório Final (`src/visualization.py`, `outputs/dashboards/`, `outputs/reports/`)
+- [x] Fase 6 — Insights de Negócio (`notebooks/06_insights_negocio.ipynb`, `09_story_dashboard.html`)
