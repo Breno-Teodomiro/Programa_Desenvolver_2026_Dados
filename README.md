@@ -161,6 +161,9 @@ Abra os dashboards HTML diretamente no navegador:
 | `04_risk_timeline_CA65926_jun.html` | Timeline de probabilidade (equip. mais crítico) |
 | `05_shap_global.html` | Importância global das features (SHAP) |
 | `06_critical_CA65926.html` | Análise detalhada do equipamento CA65926 |
+| `07_baseline_comparison.html` | Comparação LightGBM vs regra estática (gerado pelo notebook 06) |
+| `08_alarm_fingerprint_narrative.html` | Fingerprint narrativo com nomes dos alarmes |
+| **`09_story_dashboard.html`** | **Dashboard executivo: narrativa completa do projeto** |
 
 ## Arquitetura: Pipeline Medallion
 
