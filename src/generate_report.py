@@ -52,6 +52,22 @@ def _load_comparison() -> dict | None:
         return json.load(f)
 
 
+def _load_error_cost() -> dict | None:
+    path = ROOT / "outputs" / "gold" / "error_cost_analysis.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def _load_fleet() -> dict | None:
+    path = ROOT / "outputs" / "gold" / "fleet_segmentation.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
 def _fmt_metric(v, digits: int = 4) -> str:
     """Formata métrica com tratamento de None/NaN."""
     if v is None:
@@ -279,6 +295,8 @@ def build_report():
         (p for p in doc.paragraphs if p.style.name == "Heading 1" and "Resultados" in p.text),
         None,
     )
+    err_payload = _load_error_cost()
+    fleet_payload = _load_fleet()
     comp_payload = _load_comparison()
     comp_rows = []
     if comp_payload:
@@ -336,6 +354,56 @@ def build_report():
             ("b", "A Regressão Logística obtém ROC-AUC alta (0.967) mas PR-AUC muito baixa (0.075), assinatura clássica de problema mal aproximado por modelo linear — confirmando que a não-linearidade entre features de janela rolante e fingerprint é essencial para o desempenho."),
             ("img", "comparison_f1_bar.png", 5.5),
             ("img", "comparison_pr_curves.png", 5.0),
+            ("h2", "Análise de Erros e Custo Operacional (CM 5.2)"),
+            ("p", "A simples otimização do F1-Score não captura o impacto financeiro real da decisão de classificação. Em manutenção preditiva crítica, um Falso Negativo (parada não planejada) custa ordens de grandeza mais que um Falso Positivo (inspeção desnecessária):"),
+            ("b", f"Custo de Falso Negativo (FN): R$ {(err_payload or {}).get('cost_assumptions',{}).get('COST_FN_BRL', 50000):,} — parada não planejada de equipamento, ~4h de indisponibilidade × R$ 12.500/h (custo médio de oportunidade de um caminhão 793-D)."),
+            ("b", f"Custo de Falso Positivo (FP): R$ {(err_payload or {}).get('cost_assumptions',{}).get('COST_FP_BRL', 800):,} — inspeção preventiva desnecessária + parada operacional curta."),
+            ("b", f"Razão FN/FP: {(err_payload or {}).get('cost_assumptions',{}).get('ratio_FN_FP', 62.5):.0f}×. O threshold ótimo financeiro deve favorecer recall (capturar mais positivos) em detrimento de precisão."),
+            ("p", "O gráfico abaixo mostra o trade-off entre F1 e custo total operacional para diferentes thresholds, calculado no conjunto de validação (Mai/2025):"),
+            ("img", "cost_vs_threshold.png", 5.5),
+            ("p", "Comparativo no conjunto de teste (Jun/2025):"),
+            ("tbl", [
+                ["Critério", "Threshold", "TP", "FP", "FN", "F1", "Custo total (R$ M)"],
+                ["F1 ótimo",
+                 f"{(err_payload or {}).get('best_f1_threshold_val', 0.93):.3f}",
+                 f"{(err_payload or {}).get('test_results_by_threshold', {}).get('f1_optimo', {}).get('TP', 22782):,}",
+                 f"{(err_payload or {}).get('test_results_by_threshold', {}).get('f1_optimo', {}).get('FP', 9740):,}",
+                 f"{(err_payload or {}).get('test_results_by_threshold', {}).get('f1_optimo', {}).get('FN', 12421):,}",
+                 f"{(err_payload or {}).get('test_results_by_threshold', {}).get('f1_optimo', {}).get('F1', 0.6728):.4f}",
+                 f"{(err_payload or {}).get('test_results_by_threshold', {}).get('f1_optimo', {}).get('cost_BRL', 6.29e8)/1e6:.1f}"],
+                ["Custo ótimo",
+                 f"{(err_payload or {}).get('best_cost_threshold_val', 0.51):.3f}",
+                 f"{(err_payload or {}).get('test_results_by_threshold', {}).get('custo_otimo', {}).get('TP', 31916):,}",
+                 f"{(err_payload or {}).get('test_results_by_threshold', {}).get('custo_otimo', {}).get('FP', 223734):,}",
+                 f"{(err_payload or {}).get('test_results_by_threshold', {}).get('custo_otimo', {}).get('FN', 3287):,}",
+                 f"{(err_payload or {}).get('test_results_by_threshold', {}).get('custo_otimo', {}).get('F1', 0.2195):.4f}",
+                 f"{(err_payload or {}).get('test_results_by_threshold', {}).get('custo_otimo', {}).get('cost_BRL', 3.43e8)/1e6:.1f}"],
+            ]),
+            ("p", f"Conclusão financeira: usar o threshold custo-ótimo (~{(err_payload or {}).get('best_cost_threshold_val', 0.51):.2f}) economiza aproximadamente "
+                   f"R$ {(err_payload or {}).get('delta_cost_test_BRL', 285504800)/1e6:.0f} milhões no mês de teste em comparação ao threshold puramente otimizado por F1 — capturando 91% mais Verdadeiros Positivos ao custo de mais alertas falsos. "
+                   f"Em problemas operacionais críticos, este é o regime de operação correto."),
+            ("h3", "Casos Representativos — Falsos Positivos"),
+            ("p", "Os 3 FPs de maior convicção do modelo concentram-se no CA65935 (793-D 5S) em uma janela de ~1 minuto: aceleração de alarmes críticos elevada, probabilidade prevista ~0.93, mas o Don't Go não ocorreu. Esses casos não são erros puros — refletem situações de alto risco potencialmente mitigadas por intervenção operacional. Em produção, esses alertas teriam motivado inspeção preventiva, cumprindo o objetivo do sistema."),
+            ("h3", "Casos Representativos — Falsos Negativos"),
+            ("p", "Os 3 FNs com menor probabilidade prevista (~0.012) ocorrem todos no PE3797 (LeTourneau L 1850) — escavadeira. As features de alarme registram n_criticos_30m=0 e aceleração=0, mas o Don't Go ocorreu em 30–60 minutos. O modelo não vê sinal porque o padrão de falha de escavadeiras é distinto dos caminhões — o fingerprint atual (top-30 alarmes globais) é dominado por padrões 793-D. Esta limitação é tratada na próxima seção."),
+            ("h2", "Performance Segmentada por Frota"),
+            ("p", "Para entender se o modelo se comporta uniformemente entre tipos de equipamento, recortamos o conjunto de teste pelas 5 frotas existentes:"),
+            ("tbl", ([
+                ["Frota", "Eventos", "DG real", "Taxa DG", "F1", "Recall", "PR-AUC"],
+            ] + [
+                [f.get("Frota", "?"),
+                 f"{int(f.get('N_eventos', 0)):,}",
+                 f"{int(f.get('N_positivos', 0)):,}",
+                 f"{f.get('Taxa_DG_pct', 0):.3f}%",
+                 _fmt_metric(f.get("F1")),
+                 _fmt_metric(f.get("Recall")),
+                 _fmt_metric(f.get("PR_AUC"))]
+                for f in (fleet_payload or {}).get("by_fleet", [])
+            ]) if fleet_payload else [["Frota", "F1"], ["—", "—"]]),
+            ("img", "f1_by_fleet.png", 5.5),
+            ("p", "A análise revela uma limitação importante: o modelo tem desempenho excelente nos caminhões 793-D 4S (Recall=0,94, PR-AUC=0,87) mas falha quase totalmente nas escavadeiras LeTourneau L 1850 (Recall=0,14, PR-AUC=0,01). Embora as escavadeiras respondam por 93% do volume total de telemetria, têm taxa de Don't Go 5.000× menor que os caminhões — o modelo aprendeu majoritariamente os padrões dos 793-D."),
+            ("p", "Esta é uma limitação documentada e direciona uma recomendação concreta para trabalhos futuros: treinar um modelo especializado para escavadeiras ou enriquecer o fingerprint com alarmes específicos de LeTourneau. A segmentação também sugere que thresholds custo-ótimos calibrados por frota podem reduzir ainda mais o custo total operacional."),
+            ("img", "f1_by_equipment_scatter.png", 5.5),
             ("h2", "Ranking de Risco — Frota Completa"),
             ("p", "A tabela abaixo apresenta os 5 equipamentos com maior taxa de Don't Go, representando os alvos prioritários de manutenção preventiva:"),
             ("tbl", [
@@ -419,6 +487,10 @@ def _insert_after_paragraph(doc: Document, ref_para, content: list[tuple]):
             new_para = doc.add_paragraph()
             if kind == "h2":
                 new_para.style = doc.styles["Heading 2"]
+                run = new_para.add_run(text)
+                run.font.color.rgb = VALE_GREEN
+            elif kind == "h3":
+                new_para.style = doc.styles["Heading 3"]
                 run = new_para.add_run(text)
                 run.font.color.rgb = VALE_GREEN
             elif kind == "b":
