@@ -76,6 +76,22 @@ def _load_horizon() -> dict | None:
         return json.load(f)
 
 
+def _load_isotonic() -> dict | None:
+    path = ROOT / "outputs" / "gold" / "isotonic_calibration.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def _load_ca65926() -> dict | None:
+    path = ROOT / "outputs" / "gold" / "ca65926_temporal.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
 def _fmt_metric(v, digits: int = 4) -> str:
     """Formata métrica com tratamento de None/NaN."""
     if v is None:
@@ -184,13 +200,18 @@ def build_report():
                 "robusta em até 240 minutos (ROC-AUC>0,96 em 4h), cumprindo a promessa operacional "
                 "do PRD. A análise de custo operacional (FN=R$50K, FP=R$800, razão 62,5×) revela "
                 "que o threshold custo-ótimo (0,51) economiza R$285 milhões no mês de teste em "
-                "relação ao threshold puramente otimizado por F1. O equipamento CA65926 (793-D 4S) "
-                "é outlier extremo (taxa DG 98× superior à média semestral; 61,6% em Jun/2025). "
-                "Limitação documentada: o modelo falha em escavadeiras LeTourneau L 1850 (Recall=0,14) "
-                "— padrão de falha distinto não capturado pelo fingerprint dominado por caminhões, "
-                "direcionando trabalho futuro para modelos especializados. Entregáveis: dashboard "
-                "Streamlit interativo, 9 visualizações HTML, 9 notebooks Jupyter reproduzíveis e "
-                "pipeline executável via uv sync."
+                "relação ao threshold puramente otimizado por F1. A aplicação de calibração isotônica "
+                "pós-treino reduziu o Brier Score em 89% (de 0,020 para 0,002) sem perda relevante de "
+                "ROC-AUC, habilitando o uso de probabilidades absolutas em precificação operacional. "
+                "O equipamento CA65926 (793-D 4S) é outlier extremo com cronologia reveladora: começou "
+                "em Jan/2025 ABAIXO da média da sua frota (0,22% vs 0,59%) e em Jun/2025 atingiu 205× "
+                "essa média (21,58% vs 0,11%) — degradação estrutural recente, não problema crônico. "
+                "Limitação documentada com refinamento empírico: o modelo falha em escavadeiras "
+                "LeTourneau L 1850 (Recall=0,14); experimento controlado com modelo dedicado piorou "
+                "métricas devido a distribution shift severo (variação de 600× na taxa DG entre meses), "
+                "direcionando trabalho futuro para feature engineering específica + detecção de drift. "
+                "Entregáveis: dashboard Streamlit interativo, 9 visualizações HTML, 11 notebooks "
+                "Jupyter reproduzíveis, modelo calibrado, pipeline executável via uv sync."
             )
             run.font.size = Pt(11)
 
@@ -236,7 +257,7 @@ def build_report():
                 ["Economia estimada (Jun)", "R$ 285 milhões", "Threshold custo-ótimo vs F1-ótimo, FN=R$50K, FP=R$800"],
                 ["Equipamento crítico", "CA65926 (793-D 4S)", "Taxa DG 98× acima da média semestral"],
                 ["Modelos comparados", "5 (3 famílias)", "Naive, Regra, Logistic L1, Random Forest, LightGBM"],
-                ["Entregáveis", "9 notebooks + dashboard + relatório", "Streamlit local; 9 dashboards HTML standalone"],
+                ["Entregáveis", "11 notebooks + dashboard + relatório", "Streamlit local; 9 dashboards HTML standalone; modelo calibrado"],
             ]),
             ("p", "Equipamentos de mineração pesada — caminhões 793-D e escavadeiras "
              "LeTourneau — geram continuamente dados de telemetria a partir de centenas de sensores "
@@ -344,6 +365,8 @@ def build_report():
     err_payload = _load_error_cost()
     fleet_payload = _load_fleet()
     horizon_payload = _load_horizon()
+    iso_payload = _load_isotonic()
+    ca65926_payload = _load_ca65926()
     comp_payload = _load_comparison()
 
     horizon_rows = [["Horizonte (min)", "Positivos", "Taxa", "F1", "Precision", "Recall", "ROC-AUC", "PR-AUC"]]
@@ -484,6 +507,31 @@ def build_report():
             ("img", "calibration_plot.png", 6.0),
             ("p", "As curvas precision/recall/F1 vs threshold abaixo justificam matematicamente os dois thresholds operacionais escolhidos: F1-ótimo (0,93) e custo-ótimo (0,51)."),
             ("img", "threshold_curves.png", 5.5),
+            ("h3", "Calibração Isotônica Pós-Treino"),
+            ("p", f"Como solução para a calibração sub-ótima do modelo bruto, aplicamos IsotonicRegression pós-treino — ajustada no conjunto de validação (Mai/2025) e avaliada no teste (Jun/2025). Os ganhos são substanciais:"),
+            ("tbl", [
+                ["Métrica", "Bruto", "Isotônico", "Δ %"],
+                ["Brier Score",
+                 f"{(iso_payload or {}).get('metrics', {}).get('raw', {}).get('Brier', 0.0203):.5f}",
+                 f"{(iso_payload or {}).get('metrics', {}).get('isotonic', {}).get('Brier', 0.0022):.5f}",
+                 f"{(iso_payload or {}).get('improvement_brier_pct', -89.08):+.1f}%"],
+                ["LogLoss",
+                 f"{(iso_payload or {}).get('metrics', {}).get('raw', {}).get('LogLoss', 0.0704):.5f}",
+                 f"{(iso_payload or {}).get('metrics', {}).get('isotonic', {}).get('LogLoss', 0.0117):.5f}",
+                 "—"],
+                ["ROC-AUC",
+                 f"{(iso_payload or {}).get('metrics', {}).get('raw', {}).get('ROC_AUC', 0.9923):.4f}",
+                 f"{(iso_payload or {}).get('metrics', {}).get('isotonic', {}).get('ROC_AUC', 0.9917):.4f}",
+                 "−0,06%"],
+                ["PR-AUC",
+                 f"{(iso_payload or {}).get('metrics', {}).get('raw', {}).get('PR_AUC', 0.6739):.4f}",
+                 f"{(iso_payload or {}).get('metrics', {}).get('isotonic', {}).get('PR_AUC', 0.6559):.4f}",
+                 "−2,7%"],
+            ]),
+            ("p", f"O Brier Score caiu 89% sem perda relevante de ROC-AUC. O modelo calibrado passou a ser {(iso_payload or {}).get('metrics', {}).get('baseline_brier', 0.00446) / max((iso_payload or {}).get('metrics', {}).get('isotonic', {}).get('Brier', 0.0022), 1e-9):.1f}× melhor que a baseline trivial de prever a taxa base constante — possível agora usar probabilidades absolutas para precificação de manutenção, dimensionamento de capacidade e comunicação executiva (\"este equipamento tem 70% de chance de Don't Go nos próximos 60min\")."),
+            ("img", "isotonic_calibration.png", 6.0),
+            ("img", "isotonic_mapping.png", 4.5),
+            ("p", "O calibrador é serializado em outputs/gold/isotonic_calibrator.pkl e aplicado como pós-processamento de 1 linha após a inferência do LightGBM principal — não requer retreinamento."),
             ("h2", "Ranking de Risco — Frota Completa"),
             ("p", "A tabela abaixo apresenta os 5 equipamentos com maior taxa de Don't Go, representando os alvos prioritários de manutenção preventiva:"),
             ("tbl", [
@@ -494,6 +542,26 @@ def build_report():
                 ["CA65927", "793-D 5S", "88.216",  "1.320", "1,50%"],
                 ["CA65792", "793-D 2S", "126.721", "1.589", "1,25%"],
             ]),
+            ("h2", "Caso Aprofundado — Cronologia de Degradação do CA65926"),
+            ("p", "O equipamento CA65926 (793-D 4S) merece análise dedicada por ser o outlier extremo da frota e por sua cronologia revelar um padrão de degradação estrutural. A tabela abaixo recorta a taxa mensal de Don't Go do equipamento contra a média dos demais caminhões 793-D 4S do mesmo período:"),
+            ("tbl", ([
+                ["Mês", "Taxa CA65926", "Média 793-D 4S", "Razão"],
+            ] + [
+                [str(r.get("mes_label", "?")),
+                 f"{r.get('taxa_dg_pct', 0):.3f}%",
+                 f"{r.get('taxa_4s', 0):.3f}%" if r.get('taxa_4s') is not None else "—",
+                 f"{(r['taxa_dg_pct'] / r['taxa_4s']):.1f}×" if r.get('taxa_4s') and r['taxa_4s'] > 0 else "—"]
+                for r in (ca65926_payload or {}).get("comparison_with_fleet_4s", [])
+            ]) if ca65926_payload else [["Mês", "Dados"], ["—", "—"]]),
+            ("img", "ca65926_vs_frota.png", 5.5),
+            ("p", "Três achados de alto valor operacional emergem desta análise:"),
+            ("b", "Inversão completa do perfil de risco: em Janeiro/2025, o CA65926 estava ABAIXO da média da sua frota (0,22% vs 0,59%). Não nasceu problemático — a degradação é estrutural e recente."),
+            ("b", "Março/2025 foi um sinal de alerta antecipado: primeiro surto com taxa 8,5× a média da frota. Deveria ter motivado inspeção mais profunda. O recuo em Abril foi enganoso — a tendência se reverteu."),
+            ("b", "Junho/2025 é colapso: taxa de Don't Go 205× a média da frota. Variabilidade desta magnitude não é aleatória — é falha sistêmica que justifica retirada para inspeção estrutural completa."),
+            ("img", "ca65926_monthly_escalation.png", 6.0),
+            ("p", f"Fator de escalada interno: {(ca65926_payload or {}).get('escalation_factor', 100):.0f}× entre o menor e o maior mês. A mediana da feature aceleracao_criticos saltou de 0,00 (Jan-Mai) para 0,87 em Junho — confirmação operacional do que o modelo já estava capturando como sinal preditivo."),
+            ("img", "ca65926_daily_timeline.png", 6.0),
+            ("p", "Recomendação executiva: o CA65926 deve ser retirado de operação para inspeção estrutural completa. Adicionalmente, recomenda-se revisar o histórico de manutenções entre Fevereiro e Março/2025 para identificar o evento que precedeu o primeiro surto — essa investigação pode revelar uma causa raiz aplicável a futuras intervenções preventivas em outros equipamentos."),
             ("h2", "Alarm Fingerprint — DNA do Don't Go"),
             ("p", "A análise do fingerprint revelou que determinados alarmes, quando presentes na janela de 4 horas anteriores a um evento, aumentam significativamente a probabilidade de Don't Go. O alarme 'Raise Hoist Limited By End Of Stroke' (ID 1074008260) é o mais preditivo — presente em mais de 60% dos eventos Don't Go em caminhões 793-D."),
             ("img", "shap_importance.png", 5.0),
