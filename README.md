@@ -196,16 +196,16 @@ Raw (parquet)
 ## Diferenciais da Solução
 
 - **Alarm Fingerprint:** presença dos 30 alarmes mais preditivos como features binárias — o "DNA do Don't Go"
-- **Predição com antecedência real:** target `is_dont_go_next_60m` — previsão 1h antes; multi-horizonte mantém ROC-AUC > 0,96 em até 4h (Sprint 3)
+- **Predição com antecedência real:** target `is_dont_go_next_60m` — previsão 1h antes; multi-horizonte mantém ROC-AUC > 0.96 em até 4h (Sprint 3)
 - **Pipeline Medallion:** arquitetura de nível produção com camadas Bronze → Silver → Gold
 - **Explicabilidade por SHAP:** justificativa de cada previsão para o negócio
 - **Validação temporal estrita:** sem vazamento de informação futuro no treino
-- **Comparação formal de 5 modelos (Sprint 1):** baseline trivial, regra de negócio (F1=0,153), Logistic L1, Random Forest e LightGBM — ganho de **+343% de F1** do ML sobre a heurística operacional
+- **Comparação formal de 5 modelos (Sprint 1):** baseline trivial, regra de negócio (F1=0.153), Logistic L1, Random Forest e LightGBM — ganho de **+343% de F1** do ML sobre a heurística operacional
 - **Decisão por custo, não só por F1 (Sprint 2):** FN custa 62× mais que FP; o threshold custo-ótimo abre uma economia potencial de ~R$285 M no mês de teste
 - **Calibração isotônica (Sprint 6):** Brier −89% — probabilidades absolutas confiáveis para precificação de manutenção
 - **Política de threshold por frota (Sprint 9):** F1 agregado +17% cortando ~46 mil falsos positivos; tabela de decisão deployável
 - **Detecção de drift (Sprint 8):** Page-Hinkley + KS para disparar re-treino em produção
-- **Rigor com resultados negativos (Sprints 10 e 12):** ensemble e modelo sequencial GRU testados e documentados como não-superiores — provam que o teto de F1≈0,69 é imposto pelo conjunto de features, não pelo algoritmo
+- **Rigor com resultados negativos (Sprints 10 e 12):** ensemble e modelo sequencial GRU testados e documentados como não-superiores — provam que o teto de F1≈0.69 é imposto pelo conjunto de features, não pelo algoritmo
 - **Diagnóstico da limitação (Sprints 5, 11, 12):** o ponto cego da escavadeira LeTourneau é triangulado a uma causa estrutural (não-estacionariedade), com os alarmes de alto lift já identificados para correção
 - **Dashboard executivo:** `09_story_dashboard.html` — narrativa completa do projeto para tomadores de decisão
 
@@ -239,3 +239,19 @@ uv run python3 src/sprint9_fleet_threshold_policy.py # threshold por frota
 uv pip install torch --index-url https://download.pytorch.org/whl/cpu
 uv run python3 src/sprint12_escavadeira_gru.py
 ```
+
+## Testes
+
+Uma suíte enxuta cobre as funções puras de apoio (formatação BR, detector de
+drift Page-Hinkley, busca de threshold ótimo, baselines e seleção de features):
+
+```bash
+uv run pytest -q
+```
+
+## Licença e Confidencialidade
+
+**Proprietário e Confidencial.** Os dados são reais e pertencem à Vale S.A.; o
+material é de uso restrito ao Programa Vale Desenvolver 2026. Deploy público é
+**proibido** — a demonstração deve ser local (`uv run streamlit run app.py`).
+Ver [`LICENSE`](LICENSE).

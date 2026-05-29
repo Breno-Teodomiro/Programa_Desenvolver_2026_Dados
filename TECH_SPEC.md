@@ -231,7 +231,7 @@ Conceito: os eventos Don't Go são precedidos por uma "assinatura" de alarmes.
 ```
 Para cada janela de 4h antes de um evento:
     1. Listar os IDs únicos de alarmes que ocorreram
-    2. Codificar como vetor binário (top 50 alarmes mais frequentes)
+    2. Codificar como vetor binário (top 30 alarmes mais frequentes)
     3. Usar como features de presença/ausência
 ```
 
@@ -282,15 +282,18 @@ Dados de teste:   Junho 2025             (1 mês — avaliação final)
 ### Hiperparâmetros Base (ajustar com validação)
 
 ```python
+# Valores-base sugeridos. Os valores FINAIS ajustados (deployados) estão em
+# outputs/reports/model_metrics.json e src/retrain_optimized.py:
+#   num_leaves=255, scale_pos_weight=40, min_child_samples=50, lr=0.05, best_iter=50
 lgb_params = {
     "objective": "binary",
     "metric": ["binary_logloss", "auc"],
-    "num_leaves": 63,
+    "num_leaves": 63,        # base; valor final ajustado: 255
     "max_depth": -1,
     "learning_rate": 0.05,
     "n_estimators": 500,
     "early_stopping_rounds": 50,
-    "scale_pos_weight": ...,  # calcular dos dados
+    "scale_pos_weight": ...,  # final: 40
     "subsample": 0.8,
     "colsample_bytree": 0.8,
     "random_state": 42
@@ -333,31 +336,38 @@ lgb_params = {
 
 ## 8. Ambiente e Dependências
 
+> **Fonte de verdade das versões:** `pyproject.toml` + `uv.lock` (gerenciado por uv).
+> As versões abaixo refletem o ambiente efetivamente usado no projeto.
+
 ```toml
-# requirements.txt (ou pyproject.toml)
-polars >= 0.20.0
-duckdb >= 0.10.0
-pyarrow >= 15.0.0
-lightgbm >= 4.3.0
-shap >= 0.45.0
-plotly >= 5.20.0
-scikit-learn >= 1.4.0
-openpyxl >= 3.1.0       # para ler os .xlsx
-jupyter >= 1.0.0
-ipykernel >= 6.0.0
-pandas >= 2.0.0          # necessário para SHAP e scikit-learn
-numpy >= 1.26.0
+# pyproject.toml (extrato — versões mínimas reais)
+polars >= 1.40.1
+duckdb >= 1.5.2
+pyarrow >= 24.0.0
+lightgbm >= 4.6.0
+shap >= 0.51.0
+plotly >= 6.7.0
+scikit-learn >= 1.8.0
+openpyxl >= 3.1.5       # para ler os .xlsx
+jupyter >= 1.1.1
+ipykernel >= 7.2.0
+pandas >= 3.0.2          # necessário para SHAP e scikit-learn
+numpy >= 2.4.4
+streamlit >= 1.57.0      # app de demonstração local
 ```
+
+> **Dependência opcional:** PyTorch (CPU) é usado apenas na PoC do Sprint 12
+> (modelo sequencial GRU para a escavadeira) e **não integra o pipeline principal**.
+> Por isso fica fora do `uv.lock` (evita arrastar a variante CUDA). Instalar sob demanda:
+> `uv pip install torch --index-url https://download.pytorch.org/whl/cpu`
 
 ### Setup inicial
 
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# .venv\Scripts\activate   # Windows
+O projeto é gerenciado por [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`):
 
-pip install -r requirements.txt
-jupyter lab
+```bash
+uv sync            # cria o .venv e instala todas as dependências do lockfile
+uv run jupyter lab # abre os notebooks no ambiente do projeto
 ```
 
 ---
