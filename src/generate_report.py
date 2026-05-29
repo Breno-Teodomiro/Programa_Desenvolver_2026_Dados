@@ -92,6 +92,14 @@ def _load_ca65926() -> dict | None:
         return json.load(f)
 
 
+def _load_drift() -> dict | None:
+    path = ROOT / "outputs" / "gold" / "drift_detection.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
 def _fmt_metric(v, digits: int = 4) -> str:
     """Formata métrica com tratamento de None/NaN."""
     if v is None:
@@ -257,7 +265,7 @@ def build_report():
                 ["Economia estimada (Jun)", "R$ 285 milhões", "Threshold custo-ótimo vs F1-ótimo, FN=R$50K, FP=R$800"],
                 ["Equipamento crítico", "CA65926 (793-D 4S)", "Taxa DG 98× acima da média semestral"],
                 ["Modelos comparados", "5 (3 famílias)", "Naive, Regra, Logistic L1, Random Forest, LightGBM"],
-                ["Entregáveis", "11 notebooks + dashboard + relatório", "Streamlit local; 9 dashboards HTML standalone; modelo calibrado"],
+                ["Entregáveis", "12 notebooks + dashboard + relatório", "Streamlit local; 9 dashboards HTML standalone; modelo calibrado; detector de drift"],
             ]),
             ("p", "Equipamentos de mineração pesada — caminhões 793-D e escavadeiras "
              "LeTourneau — geram continuamente dados de telemetria a partir de centenas de sensores "
@@ -367,7 +375,18 @@ def build_report():
     horizon_payload = _load_horizon()
     iso_payload = _load_isotonic()
     ca65926_payload = _load_ca65926()
+    drift_payload = _load_drift()
     comp_payload = _load_comparison()
+
+    # Linhas da tabela de drift
+    drift_rows = [["Frota", "Drift na Taxa DG (label)", "Drift no Score Médio"]]
+    if drift_payload:
+        for fleet, info in drift_payload.get("summary", {}).items():
+            drift_rows.append([
+                fleet,
+                ", ".join(info.get("drift_detected_taxa_dg", [])) or "—",
+                ", ".join(info.get("drift_detected_score", [])) or "—",
+            ])
 
     horizon_rows = [["Horizonte (min)", "Positivos", "Taxa", "F1", "Precision", "Recall", "ROC-AUC", "PR-AUC"]]
     if horizon_payload:
@@ -532,6 +551,17 @@ def build_report():
             ("img", "isotonic_calibration.png", 6.0),
             ("img", "isotonic_mapping.png", 4.5),
             ("p", "O calibrador é serializado em outputs/gold/isotonic_calibrator.pkl e aplicado como pós-processamento de 1 linha após a inferência do LightGBM principal — não requer retreinamento."),
+            ("h2", "Detecção Automática de Drift (operacionalização)"),
+            ("p", "O experimento Sprint 5 demonstrou empiricamente que a distribuição dos dados varia substancialmente entre meses (variação de 600× na taxa DG da escavadeira). Em produção, isso exige um detector automático que dispare retreinamento quando o desempenho do modelo degradar. Implementamos dois detectores online clássicos avaliados sobre as séries mensais Jan-Jun/2025:"),
+            ("b", "Page-Hinkley sobre a taxa observada de Don't Go (KPI primário, requer label)."),
+            ("b", "Page-Hinkley sobre o score médio do LightGBM (proxy, disponível em tempo real)."),
+            ("b", "Kolmogorov-Smirnov 2-sample entre distribuições de score de meses consecutivos (detecta mudança de forma, não só de média)."),
+            ("p", "Resultado por frota — meses em que cada detector dispararia alerta:"),
+            ("tbl", drift_rows),
+            ("img", "drift_detection_by_fleet.png", 6.5),
+            ("img", "drift_ks_heatmap.png", 6.0),
+            ("p", "Achados operacionais: (1) 793-D 2S mostra alta volatilidade — detector dispara em quase todos os meses; frota com perfil operacional instável que requer monitoramento dedicado. (2) 793-D 4S é estável — sem drift detectado. (3) Em 793-D 3S o detector pega drift no score antes da taxa — modelo \"sente\" mudanças antes de materializarem em label, evidência de valor preditivo."),
+            ("p", "Achado metodológico: o Page-Hinkley com threshold absoluto subestima drift em classes raras. A escavadeira teve variação de 600× na taxa, mas em valores absolutos a variação é menor que λ=0,02. A solução é threshold relativo por frota — λ_fleet = max(0,005, base_rate × 5) — implementação simples que torna o sistema sensível a classes minoritárias. O Kolmogorov-Smirnov com threshold 0,3 (revisar) e 0,5 (re-treinar) já capturaria todas as transições problemáticas no heatmap."),
             ("h2", "Ranking de Risco — Frota Completa"),
             ("p", "A tabela abaixo apresenta os 5 equipamentos com maior taxa de Don't Go, representando os alvos prioritários de manutenção preventiva:"),
             ("tbl", [
@@ -586,7 +616,7 @@ def build_report():
             ("p", "A identificação do CA65926 como outlier extremo (taxa DG 98× superior à média semestral; 61,6% em Jun/2025) é por si só um achado de alto valor operacional, direcionando recursos de manutenção para o equipamento que mais necessita de intervenção estrutural. A segmentação por frota também documenta uma limitação importante: o modelo atual falha em escavadeiras LeTourneau (Recall=0,14), padrão de falha distinto que motiva trabalho futuro com modelos especializados."),
             ("h2", "Trabalhos Futuros"),
             ("p", "Os trabalhos futuros listados abaixo são fundamentados em achados específicos desta análise — não são genéricos. Cada item endereça uma limitação documentada ou oportunidade identificada empiricamente:"),
-            ("b", "1. Solução robusta para escavadeiras LeTourneau L 1850 — derivado de Sprint 2 (Recall=0,14, PR-AUC=0,01 no modelo geral) e refinado por Sprint 5 (experimento negativo controlado: modelo dedicado piorou métricas devido a distribution shift severo entre meses — variação de 600× na taxa DG entre Fev e Jun). A solução exige (a) feature engineering específica para escavadeira — fingerprint próprio dos top-30 alarmes LeTourneau em vez do top-30 global dominado por caminhões, (b) detecção e tratamento de drift mensal (CUSUM, Page-Hinkley) com re-treinamento dinâmico, e (c) investigação operacional do que mudou entre Mai e Jun reduzindo a taxa DG de 0,36% para 0,002% — possível achado de negócio em si."),
+            ("b", "1. Solução robusta para escavadeiras LeTourneau L 1850 — derivado de Sprint 2 (Recall=0,14, PR-AUC=0,01 no modelo geral) e refinado por Sprint 5 (experimento negativo controlado: modelo dedicado piorou métricas devido a distribution shift severo entre meses — variação de 600× na taxa DG entre Fev e Jun). A solução exige (a) feature engineering específica para escavadeira — fingerprint próprio dos top-30 alarmes LeTourneau em vez do top-30 global dominado por caminhões, (b) refino do detector de drift implementado no Sprint 8 para usar threshold relativo por frota (λ_fleet = max(0,005, base_rate × 5)) capturando classes raras, e (c) investigação operacional do que mudou entre Mai e Jun reduzindo a taxa DG de 0,36% para 0,002% — possível achado de negócio em si."),
             ("b", "2. Threshold custo-ótimo calibrado por frota — extensão da análise de custo de Sprint 2. As distribuições de probabilidade variam significativamente entre as 4 frotas de caminhão; thresholds independentes por frota podem reduzir ainda mais o custo total operacional além dos R$285M já demonstrados."),
             ("b", "3. Calibração isotônica das probabilidades — derivado do Sprint 3: Brier=0,020 com sobre-estimativa em probabilidades intermediárias devido ao scale_pos_weight=40. Pós-processamento isotônico preservaria o ranking e produziria probabilidades absolutas adequadas para precificação de manutenção e seguros."),
             ("b", "4. Investigação operacional do CA65926 — equipamento com taxa DG de 61,6% em Jun/2025 (98× a média semestral). Recomenda-se inspeção estrutural profunda; o padrão é incompatível com manutenção corretiva padrão."),
