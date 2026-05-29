@@ -1,20 +1,0 @@
-
-=== Gerando dashboards HTML standalone ===
-
-[1/6] Ranking de risco por equipamento...
-  ✔ Ranking de risco por equipamento → 01_fleet_risk.html (+ 01_fleet_risk.png)
-[2/6] Padrões temporais...
-  ✔ Padrões temporais → 02_temporal_patterns.html (+ 02_temporal_patterns.png)
-[3/6] Alarm Fingerprint...
-  ✔ Alarm Fingerprint → 03_alarm_fingerprint.html (+ 03_alarm_fingerprint.png)
-[4/6] Timeline de risco — CA65926 (Jun)...
-  ✔ Timeline de risco CA65926 → 04_risk_timeline_CA65926_jun.html (+ 04_risk_timeline_CA65926_jun.png)
-[5/6] SHAP global...
- 99% ▕█████████████████████████████████████▌▏ (<1 second remaining)     100% ▕██████████████████████████████████████▏ (00:00:02.96 elapsed)     
-/mnt/c/PROJETOS/VALE/PROGRAMA_DESENVOLVER_2026/Analise_Avancada_de_Dados/.venv/lib/python3.12/site-packages/shap/explainers/_tree.py:620: UserWarning: LightGBM binary classifier with TreeExplainer shap values output has changed to a list of ndarray
-  warnings.warn(
-  ✔ SHAP global → 05_shap_global.html (+ 05_shap_global.png)
-[6/6] Análise equipamento crítico CA65926...
-  ✔ Análise CA65926 → 06_critical_CA65926.html (+ 06_critical_CA65926.png)
-
-=== 6 dashboards gerados em outputs/dashboards/ ===

@@ -19,6 +19,9 @@ outputs/bronze/
 outputs/silver/
 outputs/gold/
 
+# Logs de execução dos sprints (artefatos de build, regeneráveis)
+outputs/*.log
+
 # Sistema operacional
 .DS_Store
 Thumbs.db
@@ -27,9 +30,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
-
-# uv
-.python-version
 
 # Claude Code settings
 .claude/
