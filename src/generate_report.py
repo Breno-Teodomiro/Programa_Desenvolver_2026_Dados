@@ -108,6 +108,14 @@ def _load_fleet_threshold() -> dict | None:
         return json.load(f)
 
 
+def _load_ensemble() -> dict | None:
+    path = ROOT / "outputs" / "gold" / "ensemble.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
 def _brl_num(v, digits: int = 1, sign: bool = False) -> str:
     """Formata número no padrão BR (milhar '.', decimal ',')."""
     try:
@@ -394,7 +402,47 @@ def build_report():
     ca65926_payload = _load_ca65926()
     drift_payload = _load_drift()
     fleet_thr_payload = _load_fleet_threshold()
+    ens_payload = _load_ensemble()
     comp_payload = _load_comparison()
+
+    # Linhas da tabela de ensemble (Sprint 10)
+    ens_rows = [["Modelo", "F1", "Precision", "Recall", "ROC-AUC", "PR-AUC"]]
+    if ens_payload:
+        _order = ["LightGBM", "RandomForest", "Soft-voting", "Média ponderada", "Stacking"]
+        for k in _order:
+            r = ens_payload.get("results", {}).get(k)
+            if not r:
+                continue
+            ens_rows.append([
+                k, _brl_num(r["F1"], 4), _brl_num(r["precision"], 4),
+                _brl_num(r["recall"], 4), _brl_num(r["ROC_AUC"], 4), _brl_num(r["PR_AUC"], 4),
+            ])
+
+    # Veredito do ensemble (texto adapta ao resultado real)
+    ens_verdict = ""
+    if ens_payload:
+        _d = ens_payload.get("delta_f1", 0.0)
+        _dp = ens_payload.get("delta_f1_pct", 0.0)
+        _bb = ens_payload.get("best_base_model", "LightGBM")
+        _be = ens_payload.get("best_ensemble", "Stacking")
+        if ens_payload.get("ceiling_broken"):
+            ens_verdict = (
+                f"O ensemble {_be} superou o melhor modelo-base ({_bb}) em "
+                f"{_brl_num(_d, 4)} de F1 ({_brl_num(_dp, 1, sign=True)}%), rompendo o teto observado. "
+                f"O ganho confirma que RF e LightGBM cometem erros parcialmente independentes — "
+                f"a combinação captura sinal que nenhum dos dois isoladamente captura."
+            )
+        else:
+            ens_verdict = (
+                f"O melhor ensemble ({_be}) NÃO superou o melhor modelo-base ({_bb}) de forma relevante "
+                f"(Δ F1 = {_brl_num(_d, 4)}, {_brl_num(_dp, 1, sign=True)}%). Este é um resultado negativo "
+                f"informativo: confirma empiricamente a hipótese da memória do projeto de que o teto de "
+                f"desempenho é imposto pelo CONJUNTO DE FEATURES, não pela família do algoritmo. RF e LightGBM, "
+                f"apesar de mecanismos distintos (bagging vs. boosting), convergem para a mesma fronteira de "
+                f"decisão porque ambos exaurem a informação disponível nas 54 features. Ganho real exigiria "
+                f"novas fontes de dados (sequência bruta de alarmes, dados de operador), não mais modelagem "
+                f"sobre o mesmo espaço de features."
+            )
 
     # Linhas da tabela de drift
     drift_rows = [["Frota", "Drift na Taxa DG (label)", "Drift no Score Médio"]]
@@ -492,6 +540,15 @@ def build_report():
             ("b", "A Regressão Logística obtém ROC-AUC alta (0.967) mas PR-AUC muito baixa (0.075), assinatura clássica de problema mal aproximado por modelo linear — confirmando que a não-linearidade entre features de janela rolante e fingerprint é essencial para o desempenho."),
             ("img", "comparison_f1_bar.png", 5.5),
             ("img", "comparison_pr_curves.png", 5.0),
+            ("h2", "Ensemble Random Forest + LightGBM — Tentativa de Romper o Teto"),
+            ("p", "Dado que Random Forest e LightGBM empatam tecnicamente mas erram por mecanismos distintos (bagging de árvores independentes vs. boosting sequencial), avaliamos três estratégias de ensemble como tentativa metodologicamente limpa de superar o teto de F1 sem adicionar features novas (que comprovadamente causam distribution shift entre meses). Todas as estratégias têm threshold F1-ótimo calibrado na validação (Mai/2025) e são avaliadas no teste (Jun/2025):"),
+            ("b", "Soft-voting — média simples das probabilidades dos dois modelos."),
+            ("b", "Média ponderada — peso relativo dos modelos otimizado por busca na validação."),
+            ("b", "Stacking — meta-learner (Regressão Logística) treinado sobre as probabilidades dos modelos-base."),
+            ("tbl", ens_rows),
+            ("img", "ensemble_f1_comparison.png", 5.5),
+            ("p", ens_verdict or "Resultados do ensemble não disponíveis."),
+            ("img", "ensemble_pr_curves.png", 5.0),
             ("h2", "Análise de Erros e Custo Operacional (CM 5.2)"),
             ("p", "A simples otimização do F1-Score não captura o impacto financeiro real da decisão de classificação. Em manutenção preditiva crítica, um Falso Negativo (parada não planejada) custa ordens de grandeza mais que um Falso Positivo (inspeção desnecessária):"),
             ("b", f"Custo de Falso Negativo (FN): R$ {(err_payload or {}).get('cost_assumptions',{}).get('COST_FN_BRL', 50000):,} — parada não planejada de equipamento, ~4h de indisponibilidade × R$ 12.500/h (custo médio de oportunidade de um caminhão 793-D)."),

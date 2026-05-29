@@ -1,0 +1,37 @@
+Features (gold): 60
+
+== Carregando splits ==
+  undersampled 5:1 → 447,341 pos + 2,236,705 neg = 2,684,046 total
+  treino (5:1): 2,684,046 | 447,341 pos
+  val (Mai): 6,036,291 | 52,242 pos
+  test (Jun): 7,854,243 | 35,203 pos
+
+== LightGBM (modelo principal salvo) ==
+== Random Forest (retreino reproduzível, params Sprint 1) ==
+[RandomForest] n_estimators=200 | max_depth=20 | class_weight={0: 1.0, 1: 5.0}
+
+== Baselines isolados (threshold F1-ótimo na val) ==
+  LightGBM       thr=0.932  F1_val=0.4471  F1_test=0.6876
+  RandomForest   thr=0.906  F1_val=0.4540  F1_test=0.6769
+
+== Ensemble 1: Soft-voting (média simples) ==
+  thr=0.920  F1_val=0.4526  F1_test=0.6768
+
+== Ensemble 2: Média ponderada (otimiza peso na val) ==
+  w_lgbm*=0.00  thr=0.906  F1_val=0.4540  F1_test=0.6769
+
+== Ensemble 3: Stacking (LogisticRegression meta na val) ==
+  coef[rf=3.645, lgbm=2.312]  thr=0.986  F1_val=0.4532  F1_test=0.6769
+  ⚠ stacking treina o meta na MESMA val usada p/ threshold → leve viés otimista
+
+════════════════════════════════════════════════════════════════
+  Melhor modelo-base : LightGBM (F1=0.6876)
+  Melhor ensemble    : Stacking (F1=0.6769)
+  ► Δ F1 ensemble vs base: -0.0107 (-1.6%)
+════════════════════════════════════════════════════════════════
+  ✓ /mnt/c/PROJETOS/VALE/PROGRAMA_DESENVOLVER_2026/Analise_Avancada_de_Dados/outputs/figures/ensemble_f1_comparison.png
+  ✓ /mnt/c/PROJETOS/VALE/PROGRAMA_DESENVOLVER_2026/Analise_Avancada_de_Dados/outputs/figures/ensemble_pr_curves.png
+
+✓ Resultados salvos em /mnt/c/PROJETOS/VALE/PROGRAMA_DESENVOLVER_2026/Analise_Avancada_de_Dados/outputs/gold/ensemble.json
+
+══════════════ SPRINT 10 COMPLETO ══════════════
