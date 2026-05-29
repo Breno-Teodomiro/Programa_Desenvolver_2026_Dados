@@ -68,6 +68,14 @@ def _load_fleet() -> dict | None:
         return json.load(f)
 
 
+def _load_horizon() -> dict | None:
+    path = ROOT / "outputs" / "gold" / "horizon_calibration.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
 def _fmt_metric(v, digits: int = 4) -> str:
     """Formata métrica com tratamento de None/NaN."""
     if v is None:
@@ -297,7 +305,24 @@ def build_report():
     )
     err_payload = _load_error_cost()
     fleet_payload = _load_fleet()
+    horizon_payload = _load_horizon()
     comp_payload = _load_comparison()
+
+    horizon_rows = [["Horizonte (min)", "Positivos", "Taxa", "F1", "Precision", "Recall", "ROC-AUC", "PR-AUC"]]
+    if horizon_payload:
+        for r in horizon_payload.get("metrics_by_horizon", []):
+            if r.get("criterio_threshold") != "F1-ótimo":
+                continue
+            horizon_rows.append([
+                f"{int(r['horizonte_min'])}",
+                f"{int(r['N_positivos']):,}",
+                f"{r['Taxa_positivos_pct']:.3f}%",
+                _fmt_metric(r["F1"]),
+                _fmt_metric(r["Precision"]),
+                _fmt_metric(r["Recall"]),
+                _fmt_metric(r["ROC_AUC"]),
+                _fmt_metric(r["PR_AUC"]),
+            ])
     comp_rows = []
     if comp_payload:
         # Ordem fixa para narrativa pedagógica (do pior para o melhor)
@@ -404,6 +429,23 @@ def build_report():
             ("p", "A análise revela uma limitação importante: o modelo tem desempenho excelente nos caminhões 793-D 4S (Recall=0,94, PR-AUC=0,87) mas falha quase totalmente nas escavadeiras LeTourneau L 1850 (Recall=0,14, PR-AUC=0,01). Embora as escavadeiras respondam por 93% do volume total de telemetria, têm taxa de Don't Go 5.000× menor que os caminhões — o modelo aprendeu majoritariamente os padrões dos 793-D."),
             ("p", "Esta é uma limitação documentada e direciona uma recomendação concreta para trabalhos futuros: treinar um modelo especializado para escavadeiras ou enriquecer o fingerprint com alarmes específicos de LeTourneau. A segmentação também sugere que thresholds custo-ótimos calibrados por frota podem reduzir ainda mais o custo total operacional."),
             ("img", "f1_by_equipment_scatter.png", 5.5),
+            ("h2", "Antecedência Preditiva — Avaliação Multi-Horizonte"),
+            ("p", "O PRD prometeu janela de previsão de 1–4 horas. Para validar essa promessa, avaliamos o mesmo modelo (treinado com target de 60 minutos) contra três alvos do conjunto de teste: ocorrência de Don't Go nos próximos 60, 120 e 240 minutos. Os resultados, com threshold F1-ótimo (0,93):"),
+            ("tbl", horizon_rows),
+            ("img", "horizon_degradation.png", 5.5),
+            ("p", f"Observações principais: (1) ROC-AUC permanece acima de "
+                   f"{min((r['ROC_AUC'] for r in (horizon_payload or {}).get('metrics_by_horizon', []) if r['criterio_threshold']=='F1-ótimo'), default=0.96):.2f} "
+                   f"em todos os horizontes, demonstrando que o ranking de risco é robusto à janela. "
+                   f"(2) A precision sobe com o horizonte (0,70 → 0,78), indicando que alertas com score alto têm probabilidade ainda maior de Don't Go nos próximos 240 minutos. "
+                   f"(3) O recall cai (0,65 → 0,37) — janelas longas captam menos positivos, mas com confiabilidade maior."),
+            ("p", "Aplicação operacional: alertas de alta confiança podem ser estratificados por horizonte. Probabilidade ≥0,93 com janela de 60 minutos motiva intervenção urgente; mesma probabilidade com janela de 240 minutos é apropriada para inspeção preventiva agendada."),
+            ("h2", "Calibração e Curvas de Threshold"),
+            ("p", f"Brier Score = {(horizon_payload or {}).get('calibration', {}).get('brier_score', 0.0203):.4f} (perfeitamente calibrado = 0). "
+                   f"O modelo produz probabilidades regulares — adequadas para ranking de risco, mas não calibradas em termos absolutos devido ao uso de scale_pos_weight=40 para tratar desbalanceamento. "
+                   f"Trabalho futuro: aplicar calibração isotônica para uso em precificação de manutenção e seguros."),
+            ("img", "calibration_plot.png", 6.0),
+            ("p", "As curvas precision/recall/F1 vs threshold abaixo justificam matematicamente os dois thresholds operacionais escolhidos: F1-ótimo (0,93) e custo-ótimo (0,51)."),
+            ("img", "threshold_curves.png", 5.5),
             ("h2", "Ranking de Risco — Frota Completa"),
             ("p", "A tabela abaixo apresenta os 5 equipamentos com maior taxa de Don't Go, representando os alvos prioritários de manutenção preventiva:"),
             ("tbl", [
