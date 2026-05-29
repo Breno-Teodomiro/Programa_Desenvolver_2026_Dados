@@ -22,7 +22,23 @@
 | **Jupyter**    | Notebooks de análise e apresentação                | Formato esperado para EDA e comunicação              |
 | **scikit-learn** | Pré-processamento, métricas, pipelines ML        | Ecossistema padrão para ML                           |
 
-**Python:** 3.11+
+**Python:** 3.12+  
+**Gerenciador de pacotes:** [uv](https://docs.astral.sh/uv/) (lockfile em `uv.lock`)
+
+---
+
+## Comandos Comuns
+
+```bash
+uv sync                                    # instalar/sincronizar dependências
+uv run jupyter lab                         # abrir notebooks
+uv run streamlit run app.py                # dashboard interativo (Streamlit)
+uv run python src/generate_report.py       # gerar relatório Word a partir do template
+uv run python src/retrain_optimized.py     # retreinar modelo otimizado
+uv run python src/retrain_v2_features.py   # retreinar com features v2
+```
+
+Artefatos gerados vão para `outputs/figures/` (gráficos) e `outputs/reports/` (relatório final).
 
 ---
 
@@ -110,19 +126,25 @@ Analise_Avancada_de_Dados/
 ├── CLAUDE.md                          # Este arquivo
 ├── PRD.md                             # O que construir e por quê
 ├── TECH_SPEC.md                       # Como construir (arquitetura técnica)
+├── app.py                             # Dashboard Streamlit interativo
+├── pyproject.toml / uv.lock           # Dependências (uv)
 ├── Base_Dados/                        # Dados fornecidos (não modificar)
 ├── notebooks/
 │   ├── 01_EDA_apontamentos.ipynb
 │   ├── 02_EDA_telemetria.ipynb
 │   ├── 03_regras_negocio.ipynb
 │   ├── 04_feature_engineering.ipynb
-│   └── 05_modelo_preditivo.ipynb
+│   ├── 05_modelo_preditivo.ipynb
+│   └── 06_insights_negocio.ipynb
 ├── src/
 │   ├── ingestion.py                   # Carregamento e validação dos dados
-│   ├── transformation.py             # Transformações ETL (Bronze → Silver)
-│   ├── features.py                   # Feature engineering (Silver → Gold)
-│   ├── models.py                     # Treinamento e avaliação de modelos
-│   └── visualization.py             # Funções de visualização reutilizáveis
+│   ├── transformation.py              # Transformações ETL (Bronze → Silver)
+│   ├── features.py                    # Feature engineering (Silver → Gold)
+│   ├── models.py                      # Treinamento e avaliação de modelos
+│   ├── visualization.py               # Funções de visualização reutilizáveis
+│   ├── generate_report.py             # Gera relatório Word a partir do template
+│   ├── retrain_optimized.py           # Pipeline de retreino otimizado
+│   └── retrain_v2_features.py         # Retreino com conjunto de features v2
 └── outputs/
     ├── figures/                       # Gráficos e visualizações geradas
     └── reports/                       # Relatório final e documentação
@@ -151,6 +173,42 @@ Analise_Avancada_de_Dados/
 | Explicabilidade      | SHAP values para os top-10 features mais importantes       |
 | Visualização         | Dashboard interativo com timeline de equipamentos e alarmes |
 | Negócio              | ≥ 3 insights acionáveis sobre padrões operacionais         |
+
+---
+
+## Skills Locais — Quando Acionar
+
+As skills em `.claude/skills/` devem ser **auto-acionadas por contexto**. Tabelas abaixo dizem quando cada uma dispara.
+
+### Núcleo — uso frequente
+
+| Skill | Aplicar em | Sinal de disparo |
+|---|---|---|
+| **pandas-pro** | `notebooks/01–06`, `src/transformation.py`, `src/features.py` | Operações DataFrame, groupby, merge, time-series, NaN. Projeto usa Polars como principal — aplicar quando o código já está em Pandas (pré-processamento p/ SHAP, leitura de Excel via openpyxl). |
+| **data-analyst** | `notebooks/01–03`, queries DuckDB ad-hoc | EDA, estatística descritiva, SQL sobre parquet. Primeira skill ao explorar dados novos. |
+| **plotly** | `src/visualization.py`, todos os notebooks, dashboards HTML em `outputs/` | Qualquer gráfico interativo. Escolha Express vs Graph Objects, hover, dashboards. |
+| **machine-learning-ops-ml-pipeline** | `src/models.py`, `src/retrain_optimized.py`, `src/retrain_v2_features.py`, `notebooks/05` | Treino/validação temporal, comparação de modelos, pipeline LightGBM + SHAP. |
+| **python-best-practices** | Todo o `src/` (refactor) | Type hints 3.12+, dataclasses, melhorias de qualidade. Útil ao consolidar scripts de retrain. |
+
+### Visual / Streamlit
+
+| Skill | Aplicar em | Sinal de disparo |
+|---|---|---|
+| **ui-ux-pro-max** | `app.py`, dashboards HTML (`outputs/`) | Layout, paleta, tipografia, componentes UI, cartões de KPI. Principal skill para "deixar o projeto visualmente mais bonito". |
+| **ux-designer** | `app.py` (fluxo de telas), notebook de story-telling | Wireframe, user flow, hierarquia de informação. Complementar a `ui-ux-pro-max`. |
+| **debugging-streamlit** | `app.py` em caso de bug/regressão | **Caveat:** a skill assume `make debug` (não existe aqui — projeto usa `uv run streamlit run app.py`). Aplicar **apenas os conceitos** (hot-reload, screenshots, leitura de logs); ignorar o comando `make`. |
+
+### Situacional — só sob gatilho específico
+
+| Skill | Aplicar em | Sinal de disparo |
+|---|---|---|
+| **deep-learning-forecasting** | Eventual extensão para previsão temporal de telemetria (RNN/LSTM) | Só se decidir adicionar previsão deep-learning além do LightGBM atual. Não há código de DL no projeto hoje. |
+| **clean-architecture** | Refactor amplo de `src/` separando ingestão/transformação/features/modelo | Aplicar com moderação — projeto é entregável de competição, não sistema long-lived. Boa referência para revisar acoplamento `app.py` ↔ `src/`. |
+| **pytest-coverage** | Quando/se forem adicionados testes em `tests/` | Não há `tests/` no projeto. Aplicar só ao introduzir suíte de testes. |
+
+### Avisos
+
+- **premium-dashboard-patterns** — codifica padrão visual de um **outro projeto** ("Dashboard Executivo de Vendas") e referencia `src/utils/colors.py` (inexistente aqui), tokens fixos próprios e formatação BR específica. Usar **apenas como inspiração** de princípios (paleta dark consistente, hover, microinterações) — **não** seguir os tokens literalmente, ou o visual ficará inconsistente com `app.py` e os 9 dashboards já entregues.
 
 ---
 

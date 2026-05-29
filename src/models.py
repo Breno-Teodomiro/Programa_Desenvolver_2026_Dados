@@ -6,6 +6,10 @@ import numpy as np
 import polars as pl
 import pandas as pd
 import lightgbm as lgb
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
 from sklearn.metrics import (
     f1_score,
     precision_score,
@@ -392,3 +396,231 @@ def run_pipeline(
         "threshold": best_threshold,
         "df": df,
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Baselines e modelos alternativos (CM 4.2-4.3 — comparação multi-família)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _metrics_from_predictions(y_true, y_pred, y_prob=None, name: str = "baseline") -> dict:
+    """Compõe dict padronizado de métricas a partir de predições."""
+    out = {
+        "model": name,
+        "f1": f1_score(y_true, y_pred, zero_division=0),
+        "precision": precision_score(y_true, y_pred, zero_division=0),
+        "recall": recall_score(y_true, y_pred, zero_division=0),
+        "confusion_matrix": confusion_matrix(y_true, y_pred).tolist(),
+        "n_test": len(y_true),
+        "n_positive": int(np.asarray(y_true).sum()),
+    }
+    if y_prob is not None:
+        out["roc_auc"] = roc_auc_score(y_true, y_prob)
+        out["pr_auc"] = average_precision_score(y_true, y_prob)
+    else:
+        out["roc_auc"] = None
+        out["pr_auc"] = None
+    return out
+
+
+def evaluate_majority_baseline(y_test: pd.Series) -> dict:
+    """Baseline trivial: sempre prever a classe majoritária (0 = Não-DontGo).
+
+    Mostra o piso de comparação. Em desbalanceamento 1:77, acerta 98.7% por
+    sorte mas tem F1=0, expondo a inutilidade de accuracy como métrica.
+    """
+    y_pred = np.zeros(len(y_test), dtype=int)
+    metrics = _metrics_from_predictions(y_test, y_pred, y_prob=None, name="majority_class")
+    print(f"[Baseline naive — majority class]  F1={metrics['f1']:.4f} | Acc≈{1 - y_test.mean():.4f}")
+    return metrics
+
+
+def evaluate_rule_baseline(
+    df_test: pd.DataFrame,
+    y_test: pd.Series,
+    rule_col: str = "n_criticos_30m",
+    threshold: int = 3,
+) -> dict:
+    """Baseline de regra de negócio: prever DontGo se >= N alarmes críticos em 30min.
+
+    Codifica a heurística tradicional usada por operação antes do modelo ML.
+    Justifica o investimento em ML — superar essa regra é a hipótese H0.
+    """
+    if rule_col not in df_test.columns:
+        raise KeyError(f"Coluna '{rule_col}' não encontrada em df_test")
+    y_pred = (df_test[rule_col].fillna(0).values >= threshold).astype(int)
+    # Score "probabilístico" derivado da contagem normalizada — só para AUC
+    y_prob = (df_test[rule_col].fillna(0).clip(0, 20).values / 20.0)
+    name = f"rule_n{rule_col}_ge_{threshold}"
+    metrics = _metrics_from_predictions(y_test, y_pred, y_prob=y_prob, name=name)
+    metrics["rule_col"] = rule_col
+    metrics["rule_threshold"] = threshold
+    print(
+        f"[Baseline regra — {rule_col} >= {threshold}]  "
+        f"F1={metrics['f1']:.4f}  P={metrics['precision']:.4f}  R={metrics['recall']:.4f}  "
+        f"PR-AUC={metrics['pr_auc']:.4f}"
+    )
+    return metrics
+
+
+def find_best_rule_threshold(
+    df_val: pd.DataFrame,
+    y_val: pd.Series,
+    rule_col: str = "n_criticos_30m",
+    n_range: range | None = None,
+) -> int:
+    """Otimiza o threshold N da regra de negócio no conjunto de validação."""
+    n_range = n_range or range(1, 21)
+    best_n, best_f1 = 1, -1.0
+    for n in n_range:
+        y_pred = (df_val[rule_col].fillna(0).values >= n).astype(int)
+        f1 = f1_score(y_val, y_pred, zero_division=0)
+        if f1 > best_f1:
+            best_f1, best_n = f1, n
+    print(f"Regra ótima no val: {rule_col} >= {best_n}  (F1={best_f1:.4f})")
+    return best_n
+
+
+def train_logistic_baseline(
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    scale_pos_weight: float | None = None,
+    C: float = 0.1,
+    max_iter: int = 1000,
+) -> Pipeline:
+    """Logistic Regression com regularização L1 + StandardScaler.
+
+    Família linear — contrasta com LightGBM (boosting) e Random Forest (bagging).
+    Penalty L1 atua como seleção de features automática.
+    """
+    n_neg = (y_train == 0).sum()
+    n_pos = (y_train == 1).sum()
+    if scale_pos_weight is None:
+        spw = n_neg / max(n_pos, 1)
+    else:
+        spw = scale_pos_weight
+    class_weight = {0: 1.0, 1: float(spw)}
+    print(f"[LogReg L1] class_weight={class_weight} | C={C}")
+
+    pipe = Pipeline([
+        ("scaler", StandardScaler()),
+        ("clf", LogisticRegression(
+            penalty="l1",
+            solver="saga",
+            C=C,
+            class_weight=class_weight,
+            max_iter=max_iter,
+            random_state=42,
+            n_jobs=-1,
+        )),
+    ])
+    pipe.fit(X_train.fillna(0), y_train)
+    return pipe
+
+
+def train_random_forest(
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    n_estimators: int = 200,
+    max_depth: int = 20,
+    scale_pos_weight: float | None = None,
+) -> RandomForestClassifier:
+    """Random Forest — família bagging, contraste com boosting (LightGBM).
+
+    Usa class_weight balanceado para corrigir desbalanceamento.
+    """
+    n_neg = (y_train == 0).sum()
+    n_pos = (y_train == 1).sum()
+    if scale_pos_weight is None:
+        spw = n_neg / max(n_pos, 1)
+    else:
+        spw = scale_pos_weight
+    class_weight = {0: 1.0, 1: float(spw)}
+    print(f"[RandomForest] n_estimators={n_estimators} | max_depth={max_depth} | class_weight={class_weight}")
+
+    rf = RandomForestClassifier(
+        n_estimators=n_estimators,
+        max_depth=max_depth,
+        min_samples_leaf=50,
+        class_weight=class_weight,
+        random_state=42,
+        n_jobs=-1,
+    )
+    rf.fit(X_train.fillna(0), y_train)
+    return rf
+
+
+def evaluate_sklearn_model(
+    model,
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
+    threshold: float = 0.5,
+    name: str = "sklearn_model",
+) -> dict:
+    """Avaliação padronizada para modelos sklearn (pipeline ou estimator)."""
+    y_prob = model.predict_proba(X_test.fillna(0))[:, 1]
+    y_pred = (y_prob >= threshold).astype(int)
+    metrics = _metrics_from_predictions(y_test, y_pred, y_prob=y_prob, name=name)
+    metrics["threshold"] = threshold
+    print(
+        f"[{name}]  F1={metrics['f1']:.4f}  P={metrics['precision']:.4f}  R={metrics['recall']:.4f}  "
+        f"ROC-AUC={metrics['roc_auc']:.4f}  PR-AUC={metrics['pr_auc']:.4f}"
+    )
+    return metrics
+
+
+def build_comparison_table(results: list[dict]) -> pd.DataFrame:
+    """Tabela comparativa Markdown-ready de métricas de modelos.
+
+    Args:
+        results: lista de dicts retornados por evaluate_* / _metrics_from_predictions.
+    Returns:
+        DataFrame ordenado por F1 desc, colunas: model, F1, Precision, Recall, ROC-AUC, PR-AUC.
+    """
+    rows = []
+    for r in results:
+        rows.append({
+            "Modelo": r.get("model", "?"),
+            "F1": r.get("f1"),
+            "Precision": r.get("precision"),
+            "Recall": r.get("recall"),
+            "ROC-AUC": r.get("roc_auc"),
+            "PR-AUC": r.get("pr_auc"),
+        })
+    df = pd.DataFrame(rows).sort_values("F1", ascending=False).reset_index(drop=True)
+    return df
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Avaliação multi-horizonte (Sprint 3 — BONUS-1: antecedência 1-4h)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def evaluate_at_horizon(
+    model: lgb.LGBMClassifier,
+    X_test: pd.DataFrame,
+    y_test_by_horizon: dict[int, pd.Series],
+    threshold: float = 0.5,
+) -> pd.DataFrame:
+    """Avalia o mesmo modelo contra targets de horizontes diferentes (60/120/240min).
+
+    Args:
+        model: modelo treinado com target_60m.
+        X_test: features de teste (mesmas usadas no treino).
+        y_test_by_horizon: dict {horizonte_min: y_test_serie}.
+    Returns:
+        DataFrame com F1/Precision/Recall/PR-AUC por horizonte.
+    """
+    y_prob = model.predict_proba(X_test)[:, 1]
+    y_pred = (y_prob >= threshold).astype(int)
+    rows = []
+    for h, y_h in y_test_by_horizon.items():
+        rows.append({
+            "horizonte_min": h,
+            "F1": f1_score(y_h, y_pred, zero_division=0),
+            "Precision": precision_score(y_h, y_pred, zero_division=0),
+            "Recall": recall_score(y_h, y_pred, zero_division=0),
+            "ROC-AUC": roc_auc_score(y_h, y_prob),
+            "PR-AUC": average_precision_score(y_h, y_prob),
+            "n_positivos": int(y_h.sum()),
+        })
+    df = pd.DataFrame(rows).sort_values("horizonte_min").reset_index(drop=True)
+    return df
