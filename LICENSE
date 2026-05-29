@@ -1,0 +1,21 @@
+PROPRIETARY & CONFIDENTIAL
+==========================
+
+Copyright (c) 2026 — Programa Vale Desenvolver 2026 / Vale S.A.
+
+Este repositório e todo o seu conteúdo — código, notebooks, modelos, relatórios,
+dashboards e, em especial, os DADOS de telemetria e apontamentos operacionais —
+são PROPRIETÁRIOS e CONFIDENCIAIS, de uso restrito ao âmbito do Programa Vale
+Desenvolver 2026.
+
+Os dados utilizados são reais e pertencem à Vale S.A. (incluindo identificadores
+de equipamentos, timestamps e parâmetros operacionais). É EXPRESSAMENTE PROIBIDO:
+
+  - distribuir, publicar ou expor publicamente os dados ou modelos derivados;
+  - realizar deploy público de qualquer aplicação que exponha os dados;
+  - utilizar o material para qualquer finalidade fora da competição/avaliação
+    do Programa Vale Desenvolver 2026, sem autorização escrita da Vale S.A.
+
+A demonstração da solução deve ocorrer apenas em ambiente LOCAL.
+
+Todos os direitos reservados.
