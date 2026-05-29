@@ -1,0 +1,36 @@
+== Carregando modelo e dados ==
+Modelo: 54 features
+
+== Validação (Mai) — calibração de thresholds ==
+  6,036,291 linhas | 52,242 positivos
+
+== Teste (Jun) — avaliação da política ==
+  7,854,243 linhas | 35,203 positivos
+
+== Threshold custo-ótimo por frota (calibrado em Mai) ==
+  793-D 2S             thr*=0.730  (n_pos_val=1,436)
+  793-D 3S             thr*=0.320  (n_pos_val=344)
+  793-D 4S             thr*=0.730  (n_pos_val=6,583)
+  793-D 5S             thr*=0.590  (n_pos_val=24,447)
+  LeTourneau L 1850    thr*=0.510  (n_pos_val=19,432)
+
+== Avaliação no teste (Jun) — política por frota ==
+  793-D 2S             thr=0.73  TP=559    FP=18241   FN=289   F1=0.057 Rec=0.66 custo=R$29,042,800
+  793-D 3S             thr=0.32  TP=1961   FP=15330   FN=218   F1=0.201 Rec=0.90 custo=R$23,164,000
+  793-D 4S             thr=0.73  TP=13782  FP=25349   FN=1157  F1=0.510 Rec=0.92 custo=R$78,129,200
+  793-D 5S             thr=0.59  TP=14937  FP=116000  FN=2138  F1=0.202 Rec=0.87 custo=R$199,700,000
+  LeTourneau L 1850    thr=0.51  TP=22     FP=2683    FN=140   F1=0.015 Rec=0.14 custo=R$9,146,400
+
+== Baseline: threshold global único (Sprint 2) ==
+
+════════════════════════════════════════════════════════════
+  Custo global único  (thr=0.51): R$343,337,200  (F1=0.219, FN=3287, FP=223734)
+  Custo política/frota             : R$339,182,400  (F1=0.256, FN=3942, FP=177603)
+  ► Economia adicional             : R$4,154,800  (+1.2%)
+════════════════════════════════════════════════════════════
+  ✓ /mnt/c/PROJETOS/VALE/PROGRAMA_DESENVOLVER_2026/Analise_Avancada_de_Dados/outputs/figures/fleet_threshold_policy.png
+  ✓ /mnt/c/PROJETOS/VALE/PROGRAMA_DESENVOLVER_2026/Analise_Avancada_de_Dados/outputs/figures/fleet_threshold_cost_comparison.png
+
+✓ Resultados salvos em /mnt/c/PROJETOS/VALE/PROGRAMA_DESENVOLVER_2026/Analise_Avancada_de_Dados/outputs/gold/fleet_threshold_policy.json
+
+══════════════ SPRINT 9 COMPLETO ══════════════

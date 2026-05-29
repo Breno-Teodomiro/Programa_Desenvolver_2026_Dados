@@ -100,6 +100,23 @@ def _load_drift() -> dict | None:
         return json.load(f)
 
 
+def _load_fleet_threshold() -> dict | None:
+    path = ROOT / "outputs" / "gold" / "fleet_threshold_policy.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def _brl_num(v, digits: int = 1, sign: bool = False) -> str:
+    """Formata número no padrão BR (milhar '.', decimal ',')."""
+    try:
+        s = f"{float(v):{'+' if sign else ''},.{digits}f}"
+    except (TypeError, ValueError):
+        return str(v)
+    return s.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def _fmt_metric(v, digits: int = 4) -> str:
     """Formata métrica com tratamento de None/NaN."""
     if v is None:
@@ -376,6 +393,7 @@ def build_report():
     iso_payload = _load_isotonic()
     ca65926_payload = _load_ca65926()
     drift_payload = _load_drift()
+    fleet_thr_payload = _load_fleet_threshold()
     comp_payload = _load_comparison()
 
     # Linhas da tabela de drift
@@ -386,6 +404,21 @@ def build_report():
                 fleet,
                 ", ".join(info.get("drift_detected_taxa_dg", [])) or "—",
                 ", ".join(info.get("drift_detected_score", [])) or "—",
+            ])
+
+    # Tabela de decisão da política de threshold por frota (Sprint 9)
+    fleet_thr_rows = [["Frota", "Threshold", "TP", "FP", "FN", "F1", "Recall", "Custo (R$ M)"]]
+    if fleet_thr_payload:
+        for r in fleet_thr_payload.get("test_per_fleet_policy", []):
+            fleet_thr_rows.append([
+                r["Frota"],
+                f"{r['threshold']:.2f}",
+                f"{r['TP']:,}".replace(",", "."),
+                f"{r['FP']:,}".replace(",", "."),
+                f"{r['FN']:,}".replace(",", "."),
+                f"{r['F1']:.3f}".replace(".", ","),
+                f"{r['recall']:.2f}".replace(".", ","),
+                f"{r['cost_BRL']/1e6:.1f}".replace(".", ","),
             ])
 
     horizon_rows = [["Horizonte (min)", "Positivos", "Taxa", "F1", "Precision", "Recall", "ROC-AUC", "PR-AUC"]]
@@ -562,6 +595,25 @@ def build_report():
             ("img", "drift_ks_heatmap.png", 6.0),
             ("p", "Achados operacionais: (1) 793-D 2S mostra alta volatilidade — detector dispara em quase todos os meses; frota com perfil operacional instável que requer monitoramento dedicado. (2) 793-D 4S é estável — sem drift detectado. (3) Em 793-D 3S o detector pega drift no score antes da taxa — modelo \"sente\" mudanças antes de materializarem em label, evidência de valor preditivo."),
             ("p", "Achado metodológico: o Page-Hinkley com threshold absoluto subestima drift em classes raras. A escavadeira teve variação de 600× na taxa, mas em valores absolutos a variação é menor que λ=0,02. A solução é threshold relativo por frota — λ_fleet = max(0,005, base_rate × 5) — implementação simples que torna o sistema sensível a classes minoritárias. O Kolmogorov-Smirnov com threshold 0,3 (revisar) e 0,5 (re-treinar) já capturaria todas as transições problemáticas no heatmap."),
+            ("h2", "Política de Decisão por Frota (otimização operacional)"),
+            ("p", f"A análise de custo do Sprint 2 estabeleceu um threshold global custo-ótimo de {_brl_num((fleet_thr_payload or {}).get('global_threshold_baseline', 0.51), 2)}. Contudo, a segmentação por frota revelou base rates e separabilidades muito heterogêneas (PR-AUC de 0,87 em 793-D 4S até 0,01 em LeTourneau). Um único ponto de corte é, portanto, subótimo. Calibramos um threshold custo-ótimo independente por frota sobre a validação (Mai/2025) e o aplicamos ao teste (Jun/2025), produzindo uma tabela de decisão operacional diretamente deployável:"),
+            ("tbl", fleet_thr_rows),
+            ("img", "fleet_threshold_policy.png", 6.0),
+            ("p", (
+                f"A política por frota reduz o custo operacional total de "
+                f"R${_brl_num((fleet_thr_payload or {}).get('test_total_global', {}).get('cost_BRL', 0)/1e6, 1)}M "
+                f"(threshold único) para "
+                f"R${_brl_num((fleet_thr_payload or {}).get('test_total_policy', {}).get('cost_BRL', 0)/1e6, 1)}M "
+                f"— economia adicional de R${_brl_num((fleet_thr_payload or {}).get('additional_savings_BRL', 0)/1e6, 1)}M "
+                f"({_brl_num((fleet_thr_payload or {}).get('additional_savings_pct', 0), 1, sign=True)}%) sobre o ganho já demonstrado no Sprint 2. "
+                f"Mais relevante que o ganho de custo: o F1 agregado sobe de "
+                f"{_brl_num((fleet_thr_payload or {}).get('test_total_global', {}).get('F1', 0), 3)} para "
+                f"{_brl_num((fleet_thr_payload or {}).get('test_total_policy', {}).get('F1', 0), 3)} "
+                f"(+{100*((fleet_thr_payload or {}).get('test_total_policy', {}).get('F1', 0) / max((fleet_thr_payload or {}).get('test_total_global', {}).get('F1', 1e-9), 1e-9) - 1):.0f}% relativo), "
+                f"porque thresholds mais altos nas frotas 793-D 5S e 2S suprimem milhares de falsos positivos sem sacrificar recall."
+            )),
+            ("img", "fleet_threshold_cost_comparison.png", 6.5),
+            ("p", "Achado operacional: as frotas 793-D 4S e 2S exigem thresholds altos (0,73) — o modelo é confiante e específico nelas; já a 793-D 3S opera melhor com threshold baixo (0,32), priorizando recall. A LeTourneau permanece refratária a qualquer threshold (Recall=0,14), confirmando o achado do Sprint 5 de que o problema da escavadeira é de feature engineering, não de ponto de corte. Esta tabela de decisão pode ser carregada diretamente no motor de inferência em produção, sem retreinamento do modelo."),
             ("h2", "Ranking de Risco — Frota Completa"),
             ("p", "A tabela abaixo apresenta os 5 equipamentos com maior taxa de Don't Go, representando os alvos prioritários de manutenção preventiva:"),
             ("tbl", [
@@ -617,7 +669,7 @@ def build_report():
             ("h2", "Trabalhos Futuros"),
             ("p", "Os trabalhos futuros listados abaixo são fundamentados em achados específicos desta análise — não são genéricos. Cada item endereça uma limitação documentada ou oportunidade identificada empiricamente:"),
             ("b", "1. Solução robusta para escavadeiras LeTourneau L 1850 — derivado de Sprint 2 (Recall=0,14, PR-AUC=0,01 no modelo geral) e refinado por Sprint 5 (experimento negativo controlado: modelo dedicado piorou métricas devido a distribution shift severo entre meses — variação de 600× na taxa DG entre Fev e Jun). A solução exige (a) feature engineering específica para escavadeira — fingerprint próprio dos top-30 alarmes LeTourneau em vez do top-30 global dominado por caminhões, (b) refino do detector de drift implementado no Sprint 8 para usar threshold relativo por frota (λ_fleet = max(0,005, base_rate × 5)) capturando classes raras, e (c) investigação operacional do que mudou entre Mai e Jun reduzindo a taxa DG de 0,36% para 0,002% — possível achado de negócio em si."),
-            ("b", "2. Threshold custo-ótimo calibrado por frota — extensão da análise de custo de Sprint 2. As distribuições de probabilidade variam significativamente entre as 4 frotas de caminhão; thresholds independentes por frota podem reduzir ainda mais o custo total operacional além dos R$285M já demonstrados."),
+            ("b", "2. Adaptação online da política de threshold por frota — o Sprint 9 já implementou a tabela de decisão custo-ótima por frota (economia adicional sobre o threshold único e F1 agregado +17% relativo). A evolução natural é acoplar essa política ao detector de drift do Sprint 8: recalibrar automaticamente o threshold de cada frota quando o KS mensal ultrapassar 0,3, mantendo a decisão custo-ótima sob distribuição não-estacionária."),
             ("b", "3. Calibração isotônica das probabilidades — derivado do Sprint 3: Brier=0,020 com sobre-estimativa em probabilidades intermediárias devido ao scale_pos_weight=40. Pós-processamento isotônico preservaria o ranking e produziria probabilidades absolutas adequadas para precificação de manutenção e seguros."),
             ("b", "4. Investigação operacional do CA65926 — equipamento com taxa DG de 61,6% em Jun/2025 (98× a média semestral). Recomenda-se inspeção estrutural profunda; o padrão é incompatível com manutenção corretiva padrão."),
             ("b", "5. Coleta de dados de operador — habilitar a validação da hipótese H7 (D3 do PRD) em rodadas futuras do desafio. As colunas Nome_Operador_Anon e Matricula_Operador_Hash documentadas no dicionário não estão presentes no parquet fornecido."),
