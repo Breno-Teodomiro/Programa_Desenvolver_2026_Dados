@@ -124,6 +124,14 @@ def _load_esc_fingerprint() -> dict | None:
         return json.load(f)
 
 
+def _load_esc_gru() -> dict | None:
+    path = ROOT / "outputs" / "gold" / "escavadeira_gru.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
 def _brl_num(v, digits: int = 1, sign: bool = False) -> str:
     """Formata número no padrão BR (milhar '.', decimal ',')."""
     try:
@@ -412,7 +420,22 @@ def build_report():
     fleet_thr_payload = _load_fleet_threshold()
     ens_payload = _load_ensemble()
     esc_fp_payload = _load_esc_fingerprint()
+    esc_gru_payload = _load_esc_gru()
     comp_payload = _load_comparison()
+
+    # Tabela GRU vs baseline (Sprint 12)
+    gru_rows = [["Métrica", "GRU sequencial", "LightGBM geral", "Métrica decisiva?"]]
+    if esc_gru_payload:
+        gm = esc_gru_payload.get("test_metrics_gru", {})
+        bm = esc_gru_payload.get("baseline_lgbm_escavadeira", {})
+        gru_rows = [
+            ["Métrica", "GRU sequencial", "LightGBM geral", "Interpretação"],
+            ["Recall", _brl_num(gm.get("recall", 0), 3), _brl_num(bm.get("recall", 0), 3), "enganoso (ver precisão)"],
+            ["Precision", _brl_num(gm.get("precision", 0), 4), _brl_num(bm.get("precision", 0), 4), "GRU ≈ 0"],
+            ["F1", _brl_num(gm.get("F1", 0), 4), _brl_num(bm.get("F1", 0), 4), "GRU pior"],
+            ["PR-AUC", _brl_num(gm.get("PR_AUC", 0), 4), _brl_num(bm.get("PR_AUC", 0), 4), "DECISIVA → GRU pior"],
+            ["ROC-AUC", _brl_num(gm.get("ROC_AUC", 0), 3), _brl_num(bm.get("ROC_AUC", 0), 3), "GRU < 0,5 (invertido)"],
+        ]
 
     # Tabela do fingerprint da escavadeira por lift (Sprint 11)
     esc_fp_rows = [["Id_Alarme", "Alarme", "Suporte", "Taxa pré-DG", "Lift", "No modelo?"]]
@@ -659,6 +682,43 @@ def build_report():
                 "frequência que enterra o sinal. A correção é concreta: adicionar esses alarmes de alto "
                 "lift como features dedicadas da escavadeira."
             )),
+            ("h2", "PoC de Modelo Sequencial (GRU) para a Escavadeira"),
+            ("p", (
+                "O Sprint 11 mostrou que o sinal existe na escavadeira, mas é raro e concentrado em "
+                "poucos alarmes. Como teste final dessa fronteira, avaliamos se um modelo SEQUENCIAL — "
+                "que enxerga a ordem bruta dos alarmes em vez da agregação binária — recupera esse sinal. "
+                f"Treinamos uma rede neural recorrente (Embedding de {(esc_gru_payload or {}).get('architecture', {}).get('vocab_size', 300)} "
+                f"alarmes → GRU de {(esc_gru_payload or {}).get('architecture', {}).get('hidden', 48)} unidades → "
+                "classificador), com cada decisão observando a sequência dos "
+                f"{(esc_gru_payload or {}).get('architecture', {}).get('seq_len', 32)} alarmes anteriores do equipamento. "
+                "Split temporal idêntico ao do projeto (treino jan-abr / val Mai / teste Jun)."
+            )),
+            ("tbl", gru_rows),
+            ("img", "escavadeira_gru_vs_baseline.png", 6.5),
+            ("p", (
+                f"Resultado negativo inequívoco. O Recall aparentemente alto do GRU "
+                f"({_brl_num((esc_gru_payload or {}).get('test_metrics_gru', {}).get('recall', 0.685), 3)}) é um artefato: "
+                f"para atingi-lo, o modelo classifica como positivo "
+                f"{_brl_num((esc_gru_payload or {}).get('test_metrics_gru', {}).get('FP', 6639489), 0)} dos ~7,35M eventos "
+                "de teste (precisão ≈ 0). As métricas decisivas sob desbalanceamento extremo desmentem o ganho: "
+                f"PR-AUC de apenas {_brl_num((esc_gru_payload or {}).get('test_metrics_gru', {}).get('PR_AUC', 0.0002), 4)} "
+                f"(vs. {_brl_num((esc_gru_payload or {}).get('baseline_lgbm_escavadeira', {}).get('PR_AUC', 0.0102), 4)} do baseline) e "
+                f"ROC-AUC de {_brl_num((esc_gru_payload or {}).get('test_metrics_gru', {}).get('ROC_AUC', 0.429), 3)} — "
+                "abaixo de 0,5, ou seja, ranking pior que o acaso. Durante o treino, a ROC-AUC de validação (Mai) "
+                "permaneceu travada em ~0,44 mesmo com a perda de treino caindo: o modelo aprendeu padrões de "
+                "Jan-Abr que não transferem."
+            )),
+            ("p", (
+                "Conclusão triangulada: três experimentos independentes — modelo dedicado (Sprint 5), detecção "
+                "de drift (Sprint 8) e agora o modelo sequencial (Sprint 12) — convergem para o mesmo "
+                "diagnóstico. O Don't Go da escavadeira em Junho (apenas 162 eventos, contra ~108 mil no treino) "
+                "não é aprendível a partir do histórico Jan-Abr por NENHUMA arquitetura, porque a distribuição "
+                "mudou estruturalmente. O gargalo não é a capacidade do modelo nem a representação das features "
+                "— é a não-estacionariedade dos dados. Isso reorienta a solução do território de modelagem para "
+                "o operacional: (1) investigar o que mudou fisicamente na frota de escavadeiras entre Mai e Jun, "
+                "e (2) adotar re-treinamento adaptativo disparado pelo detector de drift do Sprint 8, em vez de "
+                "buscar um modelo estático mais sofisticado."
+            )),
             ("h2", "Antecedência Preditiva — Avaliação Multi-Horizonte"),
             ("p", "O PRD prometeu janela de previsão de 1–4 horas. Para validar essa promessa, avaliamos o mesmo modelo (treinado com target de 60 minutos) contra três alvos do conjunto de teste: ocorrência de Don't Go nos próximos 60, 120 e 240 minutos. Os resultados, com threshold F1-ótimo (0,93):"),
             ("tbl", horizon_rows),
@@ -790,7 +850,7 @@ def build_report():
             ("b", "3. Calibração isotônica das probabilidades — derivado do Sprint 3: Brier=0,020 com sobre-estimativa em probabilidades intermediárias devido ao scale_pos_weight=40. Pós-processamento isotônico preservaria o ranking e produziria probabilidades absolutas adequadas para precificação de manutenção e seguros."),
             ("b", "4. Investigação operacional do CA65926 — equipamento com taxa DG de 61,6% em Jun/2025 (98× a média semestral). Recomenda-se inspeção estrutural profunda; o padrão é incompatível com manutenção corretiva padrão."),
             ("b", "5. Coleta de dados de operador — habilitar a validação da hipótese H7 (D3 do PRD) em rodadas futuras do desafio. As colunas Nome_Operador_Anon e Matricula_Operador_Hash documentadas no dicionário não estão presentes no parquet fornecido."),
-            ("b", "6. Modelos de série temporal — explorar RNN/LSTM ou Temporal Fusion Transformer sobre a sequência bruta de alarmes para capturar dependências temporais longas que o fingerprint binário top-30 pode estar perdendo, especialmente para escavadeiras."),
+            ("b", "6. Re-treinamento adaptativo para a escavadeira — a PoC de modelo sequencial (GRU) do Sprint 12 foi testada e NÃO superou o baseline (PR-AUC 0,0002 vs 0,0102; ROC-AUC 0,43), confirmando que o gargalo é a não-estacionariedade, não a arquitetura. O caminho indicado não é um modelo estático mais complexo, mas (a) pipeline de re-treinamento disparado pelo detector de drift do Sprint 8 e (b) investigação operacional do colapso da taxa de Don't Go da escavadeira entre Mai e Jun/2025. Um Temporal Fusion Transformer só faria sentido após estabilizar a distribuição via re-treino adaptativo."),
             ("b", "7. Integração em tempo real — conectar o pipeline ao sistema de telemetria em produção via streaming (Kafka/Kinesis), com geração de alertas preventivos automáticos a partir do score de risco. O dashboard Streamlit atual já demonstra a interface de consumo."),
         ])
 

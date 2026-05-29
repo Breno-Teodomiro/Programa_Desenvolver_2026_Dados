@@ -1,0 +1,25 @@
+== Carregando escavadeira (silver jan-jun) ==
+  33,882,291 eventos | 127,376 positivos
+  vocabulário: 299 alarmes (+PAD) → vocab_size=300
+  train: 646,694 seqs | 107,782 pos (16.667%)
+  val: 408,076 seqs | 19,432 pos (4.762%)
+  test: 7,351,896 seqs | 162 pos (0.002%)
+
+== Treino GRU (pos_weight=5.00) ==
+  época 1/4  loss=0.8761  val_ROC_AUC=0.4289  (55s)
+  época 2/4  loss=0.7474  val_ROC_AUC=0.4352  (73s)
+  época 3/4  loss=0.6960  val_ROC_AUC=0.4412  (93s)
+  época 4/4  loss=0.6575  val_ROC_AUC=0.4487  (115s)
+
+== Threshold F1-ótimo (val Mai): 0.0066 (F1_val=0.0910) ==
+== Avaliação no teste (Jun completo) ==
+  GRU   : Recall=0.685  Prec=0.000  F1=0.000  PR-AUC=0.0002  ROC-AUC=0.429
+  LGBM  : Recall=0.136  Prec=0.008  F1=0.015  PR-AUC=0.0102
+  TP=111 de 162 positivos | FP=6,639,489
+
+  ► Supera baseline em Recall? SIM | em PR-AUC? NÃO
+  ✓ /mnt/c/PROJETOS/VALE/PROGRAMA_DESENVOLVER_2026/Analise_Avancada_de_Dados/outputs/figures/escavadeira_gru_vs_baseline.png
+
+✓ Resultados salvos | tempo total 203s
+
+══════════════ SPRINT 12 COMPLETO ══════════════
