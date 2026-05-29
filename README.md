@@ -48,21 +48,36 @@ Split temporal estrito: Treino Jan–Abr/2025 | Validação Mai/2025 | Teste Jun
 │   │   └── apontamentos/    # Ciclos operacionais (377K registros)
 │   ├── Dicionario_Dados.xlsx
 │   └── Alarmes - Regra de Negocio.xlsx
-├── notebooks/
+├── notebooks/                      # 18 notebooks executados
+│   │  # Base — EDA, features, modelo, insights
 │   ├── 01_EDA_apontamentos.ipynb   # Análise exploratória dos apontamentos
-│   ├── 02_EDA_telemetria.ipynb     # Análise dos alarmes e Don't Go
+│   ├── 02_EDA_telemetria.ipynb     # Análise dos alarmes e Don't Go (hipóteses H1–H7)
 │   ├── 03_regras_negocio.ipynb     # Regras OEM de disparo do Don't Go
 │   ├── 04_feature_engineering.ipynb # Feature engineering e análise do dataset Gold
 │   ├── 05_modelo_preditivo.ipynb   # Modelo final, métricas e SHAP
-│   └── 06_insights_negocio.ipynb  # Baseline, impacto operacional e recomendações
-├── src/
+│   ├── 06_insights_negocio.ipynb   # Baseline, impacto operacional e recomendações
+│   │  # Análises avançadas (Sprints 1–12)
+│   ├── 05b_modelos_alternativos.ipynb   # Comparação de 5 modelos (Sprint 1)
+│   ├── 06b_analise_erros_e_custo.ipynb  # Análise de erros FP/FN + custo (Sprint 2)
+│   ├── 07_segmentacao_frota.ipynb       # Performance por frota (Sprint 2)
+│   ├── 08_horizonte_calibracao.ipynb    # Multi-horizonte 60/120/240min (Sprint 3)
+│   ├── 09_experimento_escavadeira.ipynb # Experimento negativo controlado (Sprint 5)
+│   ├── 10_calibracao_isotonica.ipynb    # Calibração isotônica, Brier −89% (Sprint 6)
+│   ├── 11_ca65926_temporal.ipynb        # Cronologia de degradação do CA65926 (Sprint 7)
+│   ├── 12_drift_detection.ipynb         # Detecção de drift Page-Hinkley + KS (Sprint 8)
+│   ├── 13_fleet_threshold_policy.ipynb  # Threshold custo-ótimo por frota (Sprint 9)
+│   ├── 14_ensemble.ipynb                # Ensemble RF+LightGBM, resultado negativo (Sprint 10)
+│   ├── 15_escavadeira_fingerprint.ipynb # Fingerprint da escavadeira por lift (Sprint 11)
+│   └── 16_escavadeira_gru.ipynb         # PoC modelo sequencial GRU, negativo (Sprint 12)
+├── src/                            # Pipeline + um script por sprint
 │   ├── ingestion.py         # Raw → Bronze (carregamento e validação)
 │   ├── transformation.py    # Bronze → Silver (joins, flags pré-DG)
 │   ├── features.py          # Silver → Gold (feature engineering)
 │   ├── models.py            # Treinamento, avaliação, SHAP, persistência
-│   ├── visualization.py     # Dashboards HTML interativos
+│   ├── visualization.py     # Dashboards HTML interativos (+ snapshots PNG)
 │   ├── retrain_optimized.py # Script de retreino reproduzível
-│   └── generate_report.py   # Geração automática do relatório Word
+│   ├── generate_report.py   # Geração automática do relatório Word
+│   └── sprint1..12_*.py     # Análises avançadas reproduzíveis (1 arquivo por sprint)
 ├── outputs/
 │   ├── silver/              # Dados Bronze → Silver (222 MB, 6 meses)
 │   ├── gold/                # Feature matrix + modelo (383 MB + lgbm_dontgo.pkl)
@@ -71,6 +86,7 @@ Split temporal estrito: Treino Jan–Abr/2025 | Validação Mai/2025 | Teste Jun
 │   └── reports/             # Relatório final Word + model_metrics.json
 ├── PRD.md                   # Definição do produto e objetivos
 ├── TECH_SPEC.md             # Arquitetura técnica detalhada
+├── GUIA_APRESENTACAO.md     # Roteiro de apresentação para a banca
 └── pyproject.toml           # Dependências (gerenciado por uv)
 ```
 
@@ -180,11 +196,17 @@ Raw (parquet)
 ## Diferenciais da Solução
 
 - **Alarm Fingerprint:** presença dos 30 alarmes mais preditivos como features binárias — o "DNA do Don't Go"
-- **Predição com antecedência real:** target `is_dont_go_next_60m` — previsão 1h antes
+- **Predição com antecedência real:** target `is_dont_go_next_60m` — previsão 1h antes; multi-horizonte mantém ROC-AUC > 0,96 em até 4h (Sprint 3)
 - **Pipeline Medallion:** arquitetura de nível produção com camadas Bronze → Silver → Gold
 - **Explicabilidade por SHAP:** justificativa de cada previsão para o negócio
 - **Validação temporal estrita:** sem vazamento de informação futuro no treino
-- **Comparação com baseline:** regra estática F1=0.1091 vs LightGBM F1=0.6886 — 6.3× de melhora, precisão 12×
+- **Comparação formal de 5 modelos (Sprint 1):** baseline trivial, regra de negócio (F1=0,153), Logistic L1, Random Forest e LightGBM — ganho de **+343% de F1** do ML sobre a heurística operacional
+- **Decisão por custo, não só por F1 (Sprint 2):** FN custa 62× mais que FP; o threshold custo-ótimo abre uma economia potencial de ~R$285 M no mês de teste
+- **Calibração isotônica (Sprint 6):** Brier −89% — probabilidades absolutas confiáveis para precificação de manutenção
+- **Política de threshold por frota (Sprint 9):** F1 agregado +17% cortando ~46 mil falsos positivos; tabela de decisão deployável
+- **Detecção de drift (Sprint 8):** Page-Hinkley + KS para disparar re-treino em produção
+- **Rigor com resultados negativos (Sprints 10 e 12):** ensemble e modelo sequencial GRU testados e documentados como não-superiores — provam que o teto de F1≈0,69 é imposto pelo conjunto de features, não pelo algoritmo
+- **Diagnóstico da limitação (Sprints 5, 11, 12):** o ponto cego da escavadeira LeTourneau é triangulado a uma causa estrutural (não-estacionariedade), com os alarmes de alto lift já identificados para correção
 - **Dashboard executivo:** `09_story_dashboard.html` — narrativa completa do projeto para tomadores de decisão
 
 ## Requisitos de Hardware
@@ -203,3 +225,17 @@ O pipeline foi otimizado para rodar em máquinas com **16 GB de RAM**:
 - [x] Fase 4 — Modelagem ML (`src/models.py`, `src/retrain_optimized.py`) → F1=0.6886, ROC-AUC=0.9923
 - [x] Fase 5 — Visualizações e Relatório Final (`src/visualization.py`, `outputs/dashboards/`, `outputs/reports/`)
 - [x] Fase 6 — Insights de Negócio (`notebooks/06_insights_negocio.ipynb`, `09_story_dashboard.html`)
+- [x] **Sprints 1–12 — Análises avançadas** (`src/sprint1..12_*.py`, notebooks 05b–16): comparação de 5 modelos, análise de erros e custo, multi-horizonte, calibração isotônica, cronologia do CA65926, detecção de drift, política de threshold por frota, ensemble e modelo sequencial (resultados negativos documentados), diagnóstico do ponto cego da escavadeira
+
+### Reproduzir as análises avançadas
+
+```bash
+# Cada sprint é um script independente e reproduzível
+uv run python3 src/sprint1_compare_models.py        # comparação de 5 modelos
+uv run python3 src/sprint9_fleet_threshold_policy.py # threshold por frota
+# ... sprint2 a sprint12 seguem o mesmo padrão
+
+# Sprint 12 (modelo sequencial) requer PyTorch CPU — dependência opcional:
+uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+uv run python3 src/sprint12_escavadeira_gru.py
+```

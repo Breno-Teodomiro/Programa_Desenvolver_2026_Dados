@@ -300,7 +300,7 @@ def build_report():
             ("tbl", [
                 ["Dimensão", "Resultado", "Comparação / Contexto"],
                 ["Volume processado", "37,2M eventos de telemetria", "6 meses, 35 equipamentos, pipeline reprodutível"],
-                ["F1-Score (60min)", "0,673", "+343% sobre heurística operacional (F1=0,153)"],
+                ["F1-Score (modelo calibrado)", "0,689", "+343% de F1 sobre a heurística operacional (regra F1=0,153) na comparação formal de 5 modelos"],
                 ["ROC-AUC (60min)", "0,992", "Discriminação quase perfeita entre pré-DG e não-DG"],
                 ["Janela operacional", "60 a 240 minutos", "ROC-AUC > 0,96 mantido em todos os horizontes"],
                 ["Economia estimada (Jun)", "R$ 285 milhões", "Threshold custo-ótimo vs F1-ótimo, FN=R$50K, FP=R$800"],
@@ -579,6 +579,7 @@ def build_report():
                 ["Modelo", "F1", "Precision", "Recall", "ROC-AUC", "PR-AUC"],
                 ["LightGBM (principal)", "0.6728", "0.7005", "0.6472", "0.9923", "0.6739"],
             ]),
+            ("p", "Nota metodológica sobre o F1 do LightGBM nesta tabela (0,673) vs. a tabela de métricas do modelo (0,689): para uma comparação rigorosamente justa entre os cinco modelos, todos foram reavaliados no mesmo harness unificado, no qual o pickle salvo (54 features) é pontuado sobre a matriz Gold atual (60 features) com as features ausentes preenchidas por zero — uma avaliação ligeiramente conservadora, mantida assim para preservar a reprodutibilidade exata do modelo serializado. A métrica canônica do modelo calibrado, no seu próprio pipeline de features, é F1=0,689 (ver model_metrics.json). A diferença (0,016) não altera nenhuma conclusão."),
             ("p", "Três observações principais emergem desta comparação:"),
             ("b", "Ganho de F1 do ML sobre a heurística operacional: +343% (0.6761 vs 0.1528). Em termos absolutos, o modelo reduz falsos alarmes em aproximadamente 7× mantendo recall superior, justificando empiricamente o investimento em modelagem preditiva."),
             ("b", "Random Forest e LightGBM apresentam desempenho equivalente (F1 0.6761 vs 0.6728), com ROC-AUC ambos acima de 0,99. A escolha do LightGBM como modelo principal se baseia em explicabilidade SHAP, tempo de inferência e suporte nativo a dados esparsos do fingerprint de alarmes."),
