@@ -47,8 +47,8 @@ def _save_html(fig: go.Figure, name: str, title: str) -> Path:
         png = DASH_DIR / f"{name}.png"
         fig.write_image(str(png), width=1280, height=720, scale=2)
         print(f"  ✔ {title} → {path.name} (+ {png.name})")
-    except Exception as exc:  # noqa: BLE001
-        print(f"  ✔ {title} → {path.name} (PNG falhou: {type(exc).__name__})")
+    except Exception as exc:  # noqa: BLE001 — kaleido pode levantar tipos variados
+        print(f"  ✔ {title} → {path.name} (PNG falhou: {type(exc).__name__}: {exc})")
     return path
 
 

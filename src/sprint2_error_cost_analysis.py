@@ -132,7 +132,7 @@ def main():
         print(f"  [{label}] thr={thr:.3f}  TP={tp}  FP={fp}  FN={fn}  "
               f"F1={f1:.4f}  custo=R${cost:,.0f}")
 
-    delta_cost = test_results["f1_otimo"]["cost_BRL"] - test_results["custo_otimo"]["cost_BRL"] if "f1_otimo" in test_results else 0
+    # test_results sempre contém "f1_optimo" e "custo_otimo" (preenchidos no loop acima)
     delta_cost = test_results["f1_optimo"]["cost_BRL"] - test_results["custo_otimo"]["cost_BRL"]
     print(f"  Δ custo no teste: R${delta_cost:,.0f} (custo-ótimo economiza esse valor)")
 

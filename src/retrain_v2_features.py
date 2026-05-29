@@ -1,4 +1,14 @@
-"""Retreino v2 — adiciona features de perfil por equipamento (TAG-level).
+"""⚠️ DEPRECATED — NÃO USAR EM PRODUÇÃO.
+
+Experimento que adiciona features de perfil por equipamento (TAG-level).
+Concluiu-se empiricamente que essas features causam *distribution shift* entre
+meses e PIORAM recall/F1 no teste (overfitting de identidade do equipamento).
+Mantido apenas como registro histórico do experimento negativo.
+
+➡️  Para retreinar o modelo final reproduzível, use: src/retrain_optimized.py
+
+----------------------------------------------------------------------------
+Retreino v2 — adiciona features de perfil por equipamento (TAG-level).
 
 Novas features (sem re-rodar pipeline gold):
   tag_dg_rate         — taxa histórica de DG por TAG (jan-mai)
@@ -9,8 +19,6 @@ Novas features (sem re-rodar pipeline gold):
 
 Estratégia: computa perfil por TAG APENAS nos meses de treino (sem leakage),
 depois merge estático em treino e teste.
-
-Uso: uv run python3 src/retrain_v2_features.py
 """
 
 import json
@@ -273,4 +281,10 @@ def train():
 
 
 if __name__ == "__main__":
-    train()
+    raise SystemExit(
+        "⚠️ retrain_v2_features.py está DEPRECATED — as features de perfil por TAG "
+        "causam distribution shift e pioram o F1.\n"
+        "   Use 'uv run python3 src/retrain_optimized.py' para o modelo final.\n"
+        "   (Para rodar este experimento histórico mesmo assim, chame train() "
+        "explicitamente em um script/REPL.)"
+    )
