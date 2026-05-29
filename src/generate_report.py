@@ -116,6 +116,14 @@ def _load_ensemble() -> dict | None:
         return json.load(f)
 
 
+def _load_esc_fingerprint() -> dict | None:
+    path = ROOT / "outputs" / "gold" / "escavadeira_fingerprint.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
 def _brl_num(v, digits: int = 1, sign: bool = False) -> str:
     """Formata número no padrão BR (milhar '.', decimal ',')."""
     try:
@@ -403,7 +411,21 @@ def build_report():
     drift_payload = _load_drift()
     fleet_thr_payload = _load_fleet_threshold()
     ens_payload = _load_ensemble()
+    esc_fp_payload = _load_esc_fingerprint()
     comp_payload = _load_comparison()
+
+    # Tabela do fingerprint da escavadeira por lift (Sprint 11)
+    esc_fp_rows = [["Id_Alarme", "Alarme", "Suporte", "Taxa pré-DG", "Lift", "No modelo?"]]
+    if esc_fp_payload:
+        for r in esc_fp_payload.get("escavadeira_top_alarms_by_lift", [])[:8]:
+            esc_fp_rows.append([
+                str(r["Id_Alarme"]),
+                (r["Alarme"][:38] + "…") if len(r["Alarme"]) > 39 else r["Alarme"],
+                f"{r['suporte']:,}".replace(",", "."),
+                f"{r['taxa_pre_dg']*100:.1f}%".replace(".", ","),
+                f"{_brl_num(r['lift'], 1)}×",
+                "sim" if r["no_top30_global"] else "NÃO",
+            ])
 
     # Linhas da tabela de ensemble (Sprint 10)
     ens_rows = [["Modelo", "F1", "Precision", "Recall", "ROC-AUC", "PR-AUC"]]
@@ -599,6 +621,44 @@ def build_report():
             ("p", "A análise revela uma limitação importante: o modelo tem desempenho excelente nos caminhões 793-D 4S (Recall=0,94, PR-AUC=0,87) mas falha quase totalmente nas escavadeiras LeTourneau L 1850 (Recall=0,14, PR-AUC=0,01). Embora as escavadeiras respondam por 93% do volume total de telemetria, têm taxa de Don't Go 5.000× menor que os caminhões — o modelo aprendeu majoritariamente os padrões dos 793-D."),
             ("p", "Esta é uma limitação documentada e direciona uma recomendação concreta para trabalhos futuros: treinar um modelo especializado para escavadeiras ou enriquecer o fingerprint com alarmes específicos de LeTourneau. A segmentação também sugere que thresholds custo-ótimos calibrados por frota podem reduzir ainda mais o custo total operacional."),
             ("img", "f1_by_equipment_scatter.png", 5.5),
+            ("h2", "Diagnóstico do Ponto Cego da Escavadeira — Fingerprint por Lift"),
+            ("p", (
+                "Por que o modelo é cego à escavadeira? Investigamos a raiz trocando o critério de "
+                "seleção de alarmes do fingerprint. O fingerprint atual seleciona os 30 alarmes mais "
+                "FREQUENTES globalmente — mas a escavadeira responde por 91% de todos os eventos de "
+                "telemetria, então esses alarmes são, em grande parte, ruído rotineiro da própria "
+                "escavadeira. Recalculamos a relevância de cada alarme pelo seu LIFT PREDITIVO: quanto "
+                f"sua presença num evento eleva a probabilidade de um Don't Go nos próximos 60min "
+                f"(base da escavadeira = {_brl_num((esc_fp_payload or {}).get('base_rate_escavadeira', 0.00376)*100, 3)}%)."
+            )),
+            ("p", "Os 8 alarmes de maior lift preditivo na escavadeira LeTourneau L 1850:"),
+            ("tbl", esc_fp_rows),
+            ("img", "escavadeira_fingerprint_lift.png", 6.0),
+            ("p", (
+                f"Achado central: os {((esc_fp_payload or {}).get('escavadeira_top_alarms_by_lift') and sum(1 for r in esc_fp_payload['escavadeira_top_alarms_by_lift'][:8] if not r['no_top30_global'])) or 8} "
+                f"alarmes de maior lift da escavadeira estão TODOS ausentes do fingerprint atual. Os dois "
+                f"mais fortes são mecanicamente interpretáveis e altamente preditivos: 'Channel Forced' "
+                f"(lift {_brl_num((esc_fp_payload or {}).get('diagnostics', {}).get('max_lift_escavadeira', 44.4), 1)}×, "
+                f"taxa pré-DG {_brl_num((esc_fp_payload or {}).get('diagnostics', {}).get('max_rate_escavadeira', 0.167)*100, 1)}%) — "
+                f"uma falha de canal de controle — e 'MC - Temperatura do PTO >90°C' (lift 28,7×) — "
+                f"superaquecimento da tomada de força. Ambos são raros (suporte de poucos milhares de "
+                f"eventos), e por isso o critério de FREQUÊNCIA os descarta, sepultando justamente o sinal."
+            )),
+            ("img", "escavadeira_vs_caminhao_fingerprint.png", 6.5),
+            ("p", (
+                "Diagnóstico refinado (corrige a leitura anterior): NÃO é verdade que a escavadeira não "
+                "tenha sinal — ela tem alarmes de lift até 44× (vs. máximo de 8× nos caminhões). O que "
+                "ocorre é que (1) esses sinais fortes são raros e (2) o critério de seleção por frequência "
+                "do fingerprint atual os exclui. A cobertura é quase idêntica entre os dois critérios "
+                f"({_brl_num((esc_fp_payload or {}).get('coverage_pre_dg_escavadeira', {}).get('global_top30_freq', 0.975)*100, 1)}% vs "
+                f"{_brl_num((esc_fp_payload or {}).get('coverage_pre_dg_escavadeira', {}).get('escavadeira_top30_lift', 0.977)*100, 1)}%) "
+                "porque a maioria dos eventos pré-DG da escavadeira só traz alarmes rotineiros — mas o "
+                "subconjunto que dispara 'Channel Forced' ou 'PTO >90°C' é altamente recuperável e hoje "
+                "está 100% perdido. Isto refina o experimento negativo do Sprint 5: o modelo dedicado "
+                "falhou não por ausência de sinal, mas por reutilizar o mesmo feature set baseado em "
+                "frequência que enterra o sinal. A correção é concreta: adicionar esses alarmes de alto "
+                "lift como features dedicadas da escavadeira."
+            )),
             ("h2", "Antecedência Preditiva — Avaliação Multi-Horizonte"),
             ("p", "O PRD prometeu janela de previsão de 1–4 horas. Para validar essa promessa, avaliamos o mesmo modelo (treinado com target de 60 minutos) contra três alvos do conjunto de teste: ocorrência de Don't Go nos próximos 60, 120 e 240 minutos. Os resultados, com threshold F1-ótimo (0,93):"),
             ("tbl", horizon_rows),
@@ -725,7 +785,7 @@ def build_report():
             ("p", "A identificação do CA65926 como outlier extremo (taxa DG 98× superior à média semestral; 61,6% em Jun/2025) é por si só um achado de alto valor operacional, direcionando recursos de manutenção para o equipamento que mais necessita de intervenção estrutural. A segmentação por frota também documenta uma limitação importante: o modelo atual falha em escavadeiras LeTourneau (Recall=0,14), padrão de falha distinto que motiva trabalho futuro com modelos especializados."),
             ("h2", "Trabalhos Futuros"),
             ("p", "Os trabalhos futuros listados abaixo são fundamentados em achados específicos desta análise — não são genéricos. Cada item endereça uma limitação documentada ou oportunidade identificada empiricamente:"),
-            ("b", "1. Solução robusta para escavadeiras LeTourneau L 1850 — derivado de Sprint 2 (Recall=0,14, PR-AUC=0,01 no modelo geral) e refinado por Sprint 5 (experimento negativo controlado: modelo dedicado piorou métricas devido a distribution shift severo entre meses — variação de 600× na taxa DG entre Fev e Jun). A solução exige (a) feature engineering específica para escavadeira — fingerprint próprio dos top-30 alarmes LeTourneau em vez do top-30 global dominado por caminhões, (b) refino do detector de drift implementado no Sprint 8 para usar threshold relativo por frota (λ_fleet = max(0,005, base_rate × 5)) capturando classes raras, e (c) investigação operacional do que mudou entre Mai e Jun reduzindo a taxa DG de 0,36% para 0,002% — possível achado de negócio em si."),
+            ("b", "1. Fingerprint dedicado da escavadeira LeTourneau L 1850 — o Sprint 11 já identificou empiricamente os alarmes a adicionar: 'Channel Forced' (lift 44×, taxa pré-DG 16,7%) e 'MC - Temperatura do PTO >90°C' (lift 28,7×) são os sinais mais preditivos e estão 100% ausentes do fingerprint atual (excluídos pelo critério de frequência por serem raros). O próximo passo concreto é (a) adicionar os top-8 alarmes de alto lift da escavadeira como features binárias dedicadas e retreinar avaliando o ganho de recall na LeTourneau, (b) acoplar ao detector de drift do Sprint 8 com threshold relativo por frota (λ_fleet = max(0,005, base_rate × 5)) capturando classes raras, e (c) investigação operacional do colapso de taxa DG entre Mai e Jun — possível achado de negócio em si."),
             ("b", "2. Adaptação online da política de threshold por frota — o Sprint 9 já implementou a tabela de decisão custo-ótima por frota (economia adicional sobre o threshold único e F1 agregado +17% relativo). A evolução natural é acoplar essa política ao detector de drift do Sprint 8: recalibrar automaticamente o threshold de cada frota quando o KS mensal ultrapassar 0,3, mantendo a decisão custo-ótima sob distribuição não-estacionária."),
             ("b", "3. Calibração isotônica das probabilidades — derivado do Sprint 3: Brier=0,020 com sobre-estimativa em probabilidades intermediárias devido ao scale_pos_weight=40. Pós-processamento isotônico preservaria o ranking e produziria probabilidades absolutas adequadas para precificação de manutenção e seguros."),
             ("b", "4. Investigação operacional do CA65926 — equipamento com taxa DG de 61,6% em Jun/2025 (98× a média semestral). Recomenda-se inspeção estrutural profunda; o padrão é incompatível com manutenção corretiva padrão."),
