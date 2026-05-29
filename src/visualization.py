@@ -41,7 +41,14 @@ def _save_html(fig: go.Figure, name: str, title: str) -> Path:
     path = DASH_DIR / f"{name}.html"
     fig.write_html(str(path), include_plotlyjs="cdn",
                    config=_PLOTLY_CONFIG, full_html=True)
-    print(f"  ✔ {title} → {path.name}")
+    # Snapshot PNG estático (para inserção no relatório Word). Guardado: se o
+    # kaleido falhar, não interrompe a geração do HTML interativo.
+    try:
+        png = DASH_DIR / f"{name}.png"
+        fig.write_image(str(png), width=1280, height=720, scale=2)
+        print(f"  ✔ {title} → {path.name} (+ {png.name})")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  ✔ {title} → {path.name} (PNG falhou: {type(exc).__name__})")
     return path
 
 
