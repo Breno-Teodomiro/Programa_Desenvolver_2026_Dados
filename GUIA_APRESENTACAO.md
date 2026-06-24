@@ -2,13 +2,13 @@
 ### Vale Desenvolver 2026 · Análise Avançada de Dados
 
 > Documento de orientação para a banca/apresentação. Não é entregável técnico — é o seu roteiro.
-> Tudo aqui está ancorado nos resultados reais do projeto (12 sprints). Última revisão: 2026-05-29.
+> Tudo aqui está ancorado nos resultados reais do projeto (12 sprints). Última revisão: 2026-06-24.
 
 ---
 
 ## 1. A mensagem central (decore isto)
 
-> **"Transformamos 37 milhões de eventos brutos de telemetria em um score de risco que antecipa o evento Don't Go com 1 a 4 horas de antecedência, ganhando +343% de F1 sobre a regra operacional atual e abrindo uma economia potencial de R$285 milhões/mês — e onde o modelo NÃO funciona, sabemos exatamente por quê."**
+> **"Transformamos 37 milhões de eventos brutos de telemetria em um score de risco que antecipa o evento Don't Go com 1 a 4 horas de antecedência, ganhando +340% de F1 sobre a regra operacional atual e abrindo uma economia de ~R$6 milhões/mês ao evitar paradas — e onde o modelo NÃO funciona, sabemos exatamente por quê."**
 
 Essa última frase é o seu diferencial. A maioria dos concorrentes vai mostrar só o que funcionou. Você mostra **domínio do problema**: onde funciona, quanto vale, onde falha e por qual razão estrutural. Isso é o que separa um finalista de um vencedor.
 
@@ -48,10 +48,10 @@ Ajuste os tempos ao limite real do evento. A regra: **40% diagnóstico/negócio,
 ### Bloco 3 — A solução (4–5 min) · *Critério: Qualidade*
 - **Pipeline Medallion:** Bronze → Silver → Gold → Modelo. 37M registros processados de forma reproduzível. (Stack: Polars + DuckDB + LightGBM.)
 - **Não é um modelo só — é uma comparação honesta de 5:** baseline trivial, regra de negócio, Logistic L1, Random Forest, LightGBM.
-  - Número-chave: **+343% de F1** do ML sobre a regra operacional (0,153 → 0,688).
-  - LightGBM final: **F1=0,69 · ROC-AUC=0,99 · PR-AUC=0,67**.
+  - Número-chave: **+340% de F1** do ML sobre a regra operacional (0,153 → 0,673).
+  - LightGBM final: **F1=0,67 · ROC-AUC=0,99 · PR-AUC=0,60** (threshold fixado na validação, sem vazamento `Is_Dont_Go`).
 - **Antecedência (a promessa do PRD):** o mesmo modelo mantém **ROC-AUC > 0,96 em 4 horas**. A precisão até *sobe* com o horizonte.
-- **Decisão por custo, não por F1:** FN custa 62× mais que FP. O threshold custo-ótimo economiza **R$285 milhões** no mês de teste vs. o threshold puramente estatístico.
+- **Decisão por custo, não por F1:** FN custa 62× mais que FP. Medindo o custo **por episódio de Don't Go** (1 episódio = 1 parada física), o threshold custo-ótimo economiza **~R$6 milhões** no mês de teste capturando ~99% das paradas, vs. o threshold puramente estatístico.
 - **Mostre:** `comparison_f1_bar.png` + o dashboard de fingerprint/SHAP.
 
 ### Bloco 4 — Robustez e operação (2–3 min) · *Critério: Qualidade*
@@ -82,10 +82,10 @@ Este bloco é contraintuitivo mas é o que ganha pontos de maturidade. **Não es
 |---|---|---|
 | **37,2 M** | eventos de telemetria | escala do problema |
 | **1:1.860** | desbalanceamento | dificuldade estatística |
-| **F1 = 0,69** | desempenho do modelo final | supera a meta de 0,75? **Não** — seja honesto (ver §7) |
-| **+343%** | ganho de F1 vs. regra de negócio | justifica o ML |
+| **F1 = 0,67** | desempenho do modelo final | supera a meta de 0,75? **Não** — seja honesto (ver §7) |
+| **+340%** | ganho de F1 vs. regra de negócio | justifica o ML |
 | **ROC-AUC 0,96 @ 4h** | antecedência | cumpre o PRD |
-| **R$ 285 M** | economia no mês de teste | impacto financeiro |
+| **~R$ 6 M** | economia no mês de teste (por episódio) | impacto financeiro |
 | **−89%** | queda no Brier (calibração) | confiabilidade das probabilidades |
 | **21,58%** | taxa DG do CA65926 em Jun (205× a frota) | o achado-estrela |
 | **44×** | lift do alarme "Channel Forced" na escavadeira | o sinal que o modelo ignora |
@@ -122,8 +122,8 @@ Dois dos achados mais fortes são **resultados negativos**. Apresentados errado,
 
 ## 7. Perguntas difíceis — e respostas prontas
 
-**P: "O F1 de 0,69 não bateu a meta de 0,75 do projeto. Por quê?"**
-R: "Correto, e investigamos a fundo. Testamos 6 variações de hiperparâmetros, um segundo modelo (Random Forest) e um ensemble — nenhum passou de ~0,69. Provamos que **0,69 é o teto do conjunto de features atual**, não uma falha de tuning. Para superá-lo seriam necessárias fontes de dados novas, não mais ajuste. Documentar esse teto com rigor vale mais que inflar a métrica."
+**P: "O F1 de 0,67 não bateu a meta de 0,75 do projeto. Por quê?"**
+R: "Correto, e investigamos a fundo. Testamos 6 variações de hiperparâmetros, um segundo modelo (Random Forest) e um ensemble — nenhum passou de ~0,69. Provamos que **~0,69 é o teto do conjunto de features atual**, não uma falha de tuning (o F1 de produção é 0,67, com o threshold honestamente fixado na validação). Para superá-lo seriam necessárias fontes de dados novas, não mais ajuste. Documentar esse teto com rigor vale mais que inflar a métrica."
 
 **P: "Por que LightGBM e não deep learning?"**
 R: "Para features tabulares e 37M de registros, LightGBM tem o melhor custo-benefício e é explicável via SHAP. E não ficamos na teoria: **testamos** uma rede recorrente (GRU) na escavadeira (Sprint 12) — ela perdeu para o LightGBM. A escolha é empírica, não dogmática."
@@ -131,8 +131,8 @@ R: "Para features tabulares e 37M de registros, LightGBM tem o melhor custo-bene
 **P: "Como sei que não há vazamento de dados (data leakage)?"**
 R: "Split estritamente **temporal**: treino Jan–Abr, validação Mai, teste Jun. O modelo nunca vê o futuro. O alvo é look-ahead de 60 min, e as features usam só janelas **passadas**. O threshold é calibrado na validação, não no teste."
 
-**P: "R$285 milhões é realista?"**
-R: "É uma **ordem de grandeza** com premissas explícitas (FN=R$50k por parada de ~4h, FP=R$800 por inspeção). O valor exato depende dos custos reais da Vale; o que é robusto é a **direção**: priorizar recall sob esse custo assimétrico economiza muito. As premissas estão no relatório para serem ajustadas."
+**P: "Os ~R$6 milhões são realistas?"**
+R: "É uma **ordem de grandeza** com premissas explícitas (FN=R$50k por parada de ~4h, FP=R$800 por inspeção), medida **por episódio de Don't Go** — não por linha de telemetria (1 parada física = 1 episódio; precificar cada linha superestimava em ordens de grandeza). O valor exato depende dos custos reais da Vale; o que é robusto é a **direção**: priorizar recall sob esse custo assimétrico evita paradas. As premissas estão no relatório para serem ajustadas."
 
 **P: "E se a distribuição mudar em produção?"**
 R: "Já tratamos isso (Sprint 8): detectores de drift Page-Hinkley + KS disparam alerta de re-treino. Foi inclusive como **diagnosticamos** o problema da escavadeira."
@@ -166,7 +166,7 @@ R: "O alarme 'Raise Hoist Limited By End Of Stroke' (presente em >60% dos Don't 
 - [ ] `uv run streamlit run app.py` testado e deixado aberto numa aba.
 - [ ] `09_story_dashboard.html` aberto no navegador (plano B offline).
 - [ ] Relatório Word aberto na seção "Resumo Executivo" (plano C).
-- [ ] Os 9 números da §4 decorados — principalmente **37M, +343%, R$285M, 21,58%, 44×**.
+- [ ] Os 9 números da §4 decorados — principalmente **37M, +340%, ~R$6M, 21,58%, 44×**.
 - [ ] Cronômetro: ensaie em voz alta pelo menos 1×. O bloco 5 (limitações) é o que mais se corta sob pressão — **não corte**.
 - [ ] Tenha uma resposta de 1 frase para "qual o impacto disso para a Vale?": *"Menos paradas não planejadas e manutenção priorizada por risco real, com 1–4h de antecedência."*
 
@@ -176,7 +176,7 @@ R: "O alarme 'Raise Hoist Limited By End Of Stroke' (presente em >60% dos Don't 
 
 1. **Afogar a banca em método.** Eles querem saber *o que você descobriu* e *quanto vale*, não cada hiperparâmetro. Método é prova, não protagonista.
 2. **Esconder a limitação da escavadeira.** É o seu trunfo de maturidade — lidere com ela, não a deixe surgir numa pergunta.
-3. **Vender o R$285M como certeza.** Diga sempre "ordem de grandeza, com estas premissas". Honestidade numérica > exagero.
+3. **Vender os ~R$6M como certeza.** Diga sempre "ordem de grandeza, com estas premissas". Honestidade numérica > exagero.
 
 ---
 

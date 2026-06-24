@@ -242,15 +242,20 @@ def build_report():
                 "pipeline de dados em camadas (Bronze → Silver → Gold). Cinco abordagens foram "
                 "comparadas em três famílias algorítmicas (baseline naive, regra de negócio, "
                 "Logistic Regression L1, Random Forest e LightGBM); o modelo LightGBM treinado com "
-                "54 features — frequências de alarmes em janelas rolantes, fingerprint dos top-30 "
-                "alarmes e contexto operacional — alcançou F1-Score de 0,67 e ROC-AUC de 0,99 na "
+                "53 features — frequências de alarmes em janelas rolantes, fingerprint dos top-30 "
+                "alarmes e contexto operacional (sem a flag do evento atual Is_Dont_Go, removida "
+                "por ser vazamento concorrente) — alcançou F1-Score de 0,67 e ROC-AUC de 0,99 na "
                 "predição de Don't Go com 60 minutos de antecedência (validação temporal estrita: "
                 "treino Jan–Abr, validação Mai, teste Jun). O ganho de F1 sobre a heurística "
-                "operacional tradicional é de +343%. A análise multi-horizonte demonstra previsão "
+                "operacional tradicional é de +340%. O threshold de decisão é fixado na validação "
+                "(Mai) e aplicado intacto ao teste (Jun), nunca selecionado no próprio teste. A "
+                "análise multi-horizonte demonstra previsão "
                 "robusta em até 240 minutos (ROC-AUC>0,96 em 4h), cumprindo a promessa operacional "
-                "do PRD. A análise de custo operacional (FN=R$50K, FP=R$800, razão 62,5×) revela "
-                "que o threshold custo-ótimo (0,51) economiza R$285 milhões no mês de teste em "
-                "relação ao threshold puramente otimizado por F1. A aplicação de calibração isotônica "
+                "do PRD. A análise de custo operacional (FN=R$50K, FP=R$800, razão 62,5×), medida "
+                "por EPISÓDIO de Don't Go (1 episódio = 1 parada física, não por linha de "
+                "telemetria), revela que o threshold custo-ótimo economiza ~R$6 milhões no mês de "
+                "teste em relação ao threshold otimizado por F1, capturando ~99% das paradas reais. "
+                "A aplicação de calibração isotônica "
                 "pós-treino reduziu o Brier Score em 89% (de 0,020 para 0,002) sem perda relevante de "
                 "ROC-AUC, habilitando o uso de probabilidades absolutas em precificação operacional. "
                 "O equipamento CA65926 (793-D 4S) é outlier extremo com cronologia reveladora: começou "
@@ -301,10 +306,10 @@ def build_report():
             ("tbl", [
                 ["Dimensão", "Resultado", "Comparação / Contexto"],
                 ["Volume processado", "37,2M eventos de telemetria", "6 meses, 35 equipamentos, pipeline reprodutível"],
-                ["F1-Score (modelo calibrado)", "0,689", "+343% de F1 sobre a heurística operacional (regra F1=0,153) na comparação formal de 5 modelos"],
-                ["ROC-AUC (60min)", "0,992", "Discriminação quase perfeita entre pré-DG e não-DG"],
+                ["F1-Score (teste, threshold da validação)", "0,673", "+340% de F1 sobre a heurística operacional (regra F1=0,153); sem vazamento Is_Dont_Go (53 features)"],
+                ["ROC-AUC (60min)", "0,990", "Discriminação quase perfeita entre pré-DG e não-DG"],
                 ["Janela operacional", "60 a 240 minutos", "ROC-AUC > 0,96 mantido em todos os horizontes"],
-                ["Economia estimada (Jun)", "R$ 285 milhões", "Threshold custo-ótimo vs F1-ótimo, FN=R$50K, FP=R$800"],
+                ["Economia estimada (Jun)", "~R$ 6 milhões", "Threshold custo-ótimo vs F1-ótimo, por EPISÓDIO de Don't Go, FN=R$50K, FP=R$800"],
                 ["Equipamento crítico", "CA65926 (793-D 4S)", "Taxa DG 98× acima da média semestral"],
                 ["Modelos comparados", "5 (3 famílias)", "Naive, Regra, Logistic L1, Random Forest, LightGBM"],
                 ["Entregáveis", "12 notebooks + dashboard + relatório", "Streamlit local; 9 dashboards HTML standalone; modelo calibrado; detector de drift"],
@@ -413,6 +418,7 @@ def build_report():
         None,
     )
     err_payload = _load_error_cost()
+    ep_cost = (err_payload or {}).get("episode_level_cost", {})
     fleet_payload = _load_fleet()
     horizon_payload = _load_horizon()
     iso_payload = _load_isotonic()
@@ -580,9 +586,9 @@ def build_report():
                 ["Modelo", "F1", "Precision", "Recall", "ROC-AUC", "PR-AUC"],
                 ["LightGBM (principal)", "0.6728", "0.7005", "0.6472", "0.9923", "0.6739"],
             ]),
-            ("p", "Nota metodológica sobre o F1 do LightGBM nesta tabela (0,673) vs. a tabela de métricas do modelo (0,689): para uma comparação rigorosamente justa entre os cinco modelos, todos foram reavaliados no mesmo harness unificado, no qual o pickle salvo (54 features) é pontuado sobre a matriz Gold atual (60 features) com as features ausentes preenchidas por zero — uma avaliação ligeiramente conservadora, mantida assim para preservar a reprodutibilidade exata do modelo serializado. A métrica canônica do modelo calibrado, no seu próprio pipeline de features, é F1=0,689 (ver model_metrics.json). A diferença (0,016) não altera nenhuma conclusão."),
+            ("p", "Nota metodológica: esta tabela é o benchmark formal de cinco modelos (Sprint 1), no qual cada modelo é pontuado no mesmo harness unificado sobre a matriz Gold para uma comparação justa. A métrica canônica do modelo de produção — sem a flag de vazamento Is_Dont_Go e com o threshold de decisão fixado na validação (Mai) e aplicado intacto ao teste (Jun) — é F1=0,673, ROC-AUC=0,990, PR-AUC=0,603 (ver model_metrics.json). As pequenas diferenças de casas decimais entre o harness de comparação e o pipeline canônico não alteram o ranking dos modelos nem nenhuma conclusão."),
             ("p", "Três observações principais emergem desta comparação:"),
-            ("b", "Ganho de F1 do ML sobre a heurística operacional: +343% (0.6761 vs 0.1528). Em termos absolutos, o modelo reduz falsos alarmes em aproximadamente 7× mantendo recall superior, justificando empiricamente o investimento em modelagem preditiva."),
+            ("b", "Ganho de F1 do ML sobre a heurística operacional: +340% (0,673 vs 0,153). Em termos absolutos, o modelo reduz falsos alarmes em aproximadamente 7× mantendo recall superior, justificando empiricamente o investimento em modelagem preditiva."),
             ("b", "Random Forest e LightGBM apresentam desempenho equivalente (F1 0.6761 vs 0.6728), com ROC-AUC ambos acima de 0,99. A escolha do LightGBM como modelo principal se baseia em explicabilidade SHAP, tempo de inferência e suporte nativo a dados esparsos do fingerprint de alarmes."),
             ("b", "A Regressão Logística obtém ROC-AUC alta (0.967) mas PR-AUC muito baixa (0.075), assinatura clássica de problema mal aproximado por modelo linear — confirmando que a não-linearidade entre features de janela rolante e fingerprint é essencial para o desempenho."),
             ("img", "comparison_f1_bar.png", 5.5),
@@ -621,9 +627,12 @@ def build_report():
                  f"{(err_payload or {}).get('test_results_by_threshold', {}).get('custo_otimo', {}).get('F1', 0.2195):.4f}",
                  f"{(err_payload or {}).get('test_results_by_threshold', {}).get('custo_otimo', {}).get('cost_BRL', 3.43e8)/1e6:.1f}"],
             ]),
-            ("p", f"Conclusão financeira: usar o threshold custo-ótimo (~{(err_payload or {}).get('best_cost_threshold_val', 0.51):.2f}) economiza aproximadamente "
-                   f"R$ {(err_payload or {}).get('delta_cost_test_BRL', 285504800)/1e6:.0f} milhões no mês de teste em comparação ao threshold puramente otimizado por F1 — capturando 91% mais Verdadeiros Positivos ao custo de mais alertas falsos. "
-                   f"Em problemas operacionais críticos, este é o regime de operação correto."),
+            ("p", "Importante: a tabela acima precifica cada LINHA de telemetria como uma parada independente, o que superestima o custo absoluto em ordens de grandeza — um único Don't Go gera dezenas a centenas de linhas na janela pré-evento. A métrica honesta de impacto deduplica por EPISÓDIO (1 episódio de Don't Go = 1 parada física):"),
+            ("p", f"Conclusão financeira (por episódio): no teste há {ep_cost.get('custo_otimo', {}).get('n_dg_episodes', 5652):,} episódios de Don't Go. "
+                   f"O threshold custo-ótimo (~{ep_cost.get('custo_otimo', {}).get('threshold', 0.25):.2f}) captura "
+                   f"{ep_cost.get('custo_otimo', {}).get('caught_episodes', 5610):,} de {ep_cost.get('custo_otimo', {}).get('n_dg_episodes', 5652):,} paradas reais (~99%) e "
+                   f"economiza aproximadamente R$ {ep_cost.get('delta_cost_episode_BRL', 6047200)/1e6:.1f} milhões no mês de teste em relação ao threshold otimizado por F1. "
+                   f"Em problemas operacionais críticos, capturar a parada física (recall por episódio) é o regime de operação correto."),
             ("h3", "Casos Representativos — Falsos Positivos"),
             ("p", "Os 3 FPs de maior convicção do modelo concentram-se no CA65935 (793-D 5S) em uma janela de ~1 minuto: aceleração de alarmes críticos elevada, probabilidade prevista ~0.93, mas o Don't Go não ocorreu. Esses casos não são erros puros — refletem situações de alto risco potencialmente mitigadas por intervenção operacional. Em produção, esses alertas teriam motivado inspeção preventiva, cumprindo o objetivo do sistema."),
             ("h3", "Casos Representativos — Falsos Negativos"),
@@ -736,7 +745,7 @@ def build_report():
                    f"O modelo produz probabilidades regulares — adequadas para ranking de risco, mas não calibradas em termos absolutos devido ao uso de scale_pos_weight=40 para tratar desbalanceamento. "
                    f"Trabalho futuro: aplicar calibração isotônica para uso em precificação de manutenção e seguros."),
             ("img", "calibration_plot.png", 6.0),
-            ("p", "As curvas precision/recall/F1 vs threshold abaixo justificam matematicamente os dois thresholds operacionais escolhidos: F1-ótimo (0,93) e custo-ótimo (0,51)."),
+            ("p", f"As curvas precision/recall/F1 vs threshold abaixo justificam matematicamente os dois thresholds operacionais escolhidos (fixados na validação de Mai/2025): F1-ótimo (~{(err_payload or {}).get('best_f1_threshold_val', 0.32):.2f}) e custo-ótimo (~{(err_payload or {}).get('best_cost_threshold_val', 0.25):.2f})."),
             ("img", "threshold_curves.png", 5.5),
             ("h3", "Calibração Isotônica Pós-Treino"),
             ("p", f"Como solução para a calibração sub-ótima do modelo bruto, aplicamos IsotonicRegression pós-treino — ajustada no conjunto de validação (Mai/2025) e avaliada no teste (Jun/2025). Os ganhos são substanciais:"),
@@ -849,7 +858,7 @@ def build_report():
     if conc_heading:
         _insert_after_paragraph(doc, conc_heading, [
             ("p", "Este trabalho demonstrou que é possível prever eventos Don't Go em equipamentos de mineração pesada com janela operacional de 60 a 240 minutos, utilizando exclusivamente os dados de telemetria disponíveis. O pipeline completo (Bronze → Silver → Gold → Modelo) processa 37,2 milhões de eventos de forma eficiente e reproduzível; o modelo LightGBM alcança ROC-AUC > 0,96 em todos os horizontes avaliados (60/120/240min), transformando dados brutos de sensores em um score de risco interpretável e acionável."),
-            ("p", "A comparação estruturada de cinco abordagens em três famílias algorítmicas (baseline naive, baseline de regra de negócio, Logistic Regression L1, Random Forest e LightGBM) demonstra um ganho de F1 de +343% sobre a heurística operacional tradicional, justificando empiricamente o investimento em modelagem preditiva. A análise de custo (FN=R$50K, FP=R$800) revela que o threshold custo-ótimo (0,51) economiza R$285 milhões no mês de teste em relação ao threshold puramente otimizado por F1, capturando 91% mais Verdadeiros Positivos — em problemas operacionais críticos, este é o regime de operação correto."),
+            ("p", "A comparação estruturada de cinco abordagens em três famílias algorítmicas (baseline naive, baseline de regra de negócio, Logistic Regression L1, Random Forest e LightGBM) demonstra um ganho de F1 de +340% sobre a heurística operacional tradicional, justificando empiricamente o investimento em modelagem preditiva. A análise de custo (FN=R$50K, FP=R$800), medida por episódio de Don't Go (1 episódio = 1 parada física), revela que o threshold custo-ótimo economiza ~R$6 milhões no mês de teste em relação ao threshold otimizado por F1, capturando ~99% das paradas reais — em problemas operacionais críticos, este é o regime de operação correto."),
             ("p", "A identificação do CA65926 como outlier extremo (taxa DG 98× superior à média semestral; escalada para 21,58% em Jun/2025, ou 205× a média da sua frota naquele mês) é por si só um achado de alto valor operacional, direcionando recursos de manutenção para o equipamento que mais necessita de intervenção estrutural. A segmentação por frota também documenta uma limitação importante: o modelo atual falha em escavadeiras LeTourneau (Recall=0,14), padrão de falha distinto que motiva trabalho futuro com modelos especializados."),
             ("h2", "Trabalhos Futuros"),
             ("p", "Os trabalhos futuros listados abaixo são fundamentados em achados específicos desta análise — não são genéricos. Cada item endereça uma limitação documentada ou oportunidade identificada empiricamente:"),
