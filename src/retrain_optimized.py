@@ -1,14 +1,17 @@
 """Retreino do modelo LightGBM com os parâmetros finais do DontGo Predictor.
 
 Parâmetros do modelo em produção (ver model_metrics.json para os números atuais):
-  num_leaves=255, scale_pos_weight=40, learning_rate=0.05
-  min_child_samples=50, neg_ratio=5, treino jan-abr, val mai, teste jun
+  num_leaves=63, scale_pos_weight=40, learning_rate=0.03
+  min_child_samples=100, neg_ratio=5, treino jan-abr, val mai, teste jun
 
 Garantias metodológicas:
   - Features derivadas do schema Gold via features.get_feature_columns (fonte
     única), que já exclui a flag de vazamento concorrente `Is_Dont_Go`.
   - Threshold de decisão FIXADO na validação (mai) e só então aplicado ao teste
     (jun) — nunca selecionado no próprio teste.
+  - Early stopping por average_precision (PR-AUC) com num_leaves moderado: evita
+    o modelo degenerado de ~4 árvores (probabilidades grossas → F1 frágil) que a
+    config anterior (255 leaves, stop por AUC) produzia ao remover o vazamento.
 
 Use este script para reproduzir o modelo a partir dos dados Gold.
 Uso: uv run python3 src/retrain_optimized.py
@@ -50,14 +53,17 @@ RANDOM_STATE = 42
 
 LGB_PARAMS = {
     "objective":         "binary",
-    "metric":            ["binary_logloss", "auc"],
-    "num_leaves":        255,         # modelo final: profundidade elevada captura padrões complexos
+    # Early stopping por average_precision (PR-AUC): em problema MUITO desbalanceado,
+    # AUC satura cedo e parava o modelo em ~4 árvores (probabilidades "grossas" →
+    # F1 frágil no threshold). PR-AUC força um ensemble profundo e bem ranqueado.
+    "metric":            "average_precision",
+    "num_leaves":        63,          # 255 era expressivo demais: 4 árvores saturavam → reduzido
     "max_depth":         -1,
-    "learning_rate":     0.05,
-    "n_estimators":      1000,        # early stopping para bem antes (best_iter=50)
+    "learning_rate":     0.03,
+    "n_estimators":      2000,        # teto alto; early stopping define o nº real (~200+)
     "subsample":         0.8,
     "colsample_bytree":  0.8,
-    "min_child_samples": 50,
+    "min_child_samples": 100,         # folhas menos ruidosas → probabilidades mais suaves
     "scale_pos_weight":  40.0,        # ajustado para maximize F1 no val (mai/2025)
     "random_state":      RANDOM_STATE,
     "n_jobs":            -1,
@@ -139,7 +145,7 @@ def train():
         X_fit, y_fit,
         eval_set=[(X_eval, y_eval)],
         callbacks=[
-            lgb.early_stopping(stopping_rounds=50, verbose=False),
+            lgb.early_stopping(stopping_rounds=80, verbose=False),
             lgb.log_evaluation(period=100),
         ],
     )

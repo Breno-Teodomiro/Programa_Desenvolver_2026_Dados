@@ -16,6 +16,7 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
     average_precision_score,
+    precision_recall_curve,
     confusion_matrix,
     classification_report,
 )
@@ -211,24 +212,29 @@ def find_best_threshold(
     """Otimiza o threshold de classificação usando o conjunto de validação.
 
     Busca o threshold que maximiza o F1-Score (ou Recall) no conjunto de validação.
+
+    Para F1 usa-se `precision_recall_curve`, que fornece TODOS os thresholds
+    candidatos na resolução real das probabilidades. Uma grade fixa (ex.: até
+    0,95) falha quando o ótimo fica perto de 1,0 — caso de modelos com
+    `scale_pos_weight` alto, cujas probabilidades de positivos se concentram
+    acima de 0,95 (era a causa do F1 subestimado no benchmark).
     """
     y_prob = model.predict_proba(X_val)[:, 1]
-    thresholds = np.linspace(0.05, 0.95, 91)
 
-    scores = []
-    for t in thresholds:
-        y_pred = (y_prob >= t).astype(int)
-        if metric == "f1":
-            score = f1_score(y_val, y_pred, zero_division=0)
-        elif metric == "recall":
-            score = recall_score(y_val, y_pred, zero_division=0)
-        else:
-            score = f1_score(y_val, y_pred, zero_division=0)
-        scores.append(score)
+    if metric == "recall":
+        thresholds = np.linspace(0.01, 0.999, 200)
+        scores = [recall_score(y_val, (y_prob >= t).astype(int), zero_division=0)
+                  for t in thresholds]
+        best_idx = int(np.argmax(scores))
+        best_threshold = float(thresholds[best_idx])
+        print(f"Melhor threshold (recall={scores[best_idx]:.4f}) no val: {best_threshold:.4f}")
+        return best_threshold
 
-    best_idx = int(np.argmax(scores))
-    best_threshold = float(thresholds[best_idx])
-    print(f"Melhor threshold ({metric}={scores[best_idx]:.4f}) no val: {best_threshold:.2f}")
+    prec, rec, thr = precision_recall_curve(y_val, y_prob)
+    f1 = 2 * prec * rec / (prec + rec + 1e-9)
+    best_idx = int(np.argmax(f1[:-1]))  # último ponto não tem threshold associado
+    best_threshold = float(thr[best_idx])
+    print(f"Melhor threshold (f1={f1[best_idx]:.4f}) no val: {best_threshold:.4f}")
     return best_threshold
 
 

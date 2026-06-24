@@ -29,6 +29,6 @@
   },
   "beats_baseline_recall": true,
   "beats_baseline_prauc": false,
-  "elapsed_s": 203.25987577438354,
+  "elapsed_s": 190.78835582733154,
   "note_distribution_shift": "Jun (teste) tem apenas 162 positivos vs ~108k no treino \u2014 mesmo shift severo do Sprint 5."
 }

@@ -10,13 +10,14 @@ Prever eventos **Don't Go** (alerta crítico que proíbe a saída do equipamento
 
 | Métrica | Valor |
 |---------|-------|
-| **F1-Score** | **0.6732** |
-| Precision | 0.6899 |
-| Recall | 0.6573 |
-| ROC-AUC | 0.9905 |
-| PR-AUC | 0.6030 |
-| Threshold (fixado na validação) | 0.3297 |
+| **F1-Score** | **0.6741** |
+| Precision | 0.7121 |
+| Recall | 0.6400 |
+| ROC-AUC | 0.9924 |
+| PR-AUC | 0.7018 |
+| Threshold (fixado na validação) | 0.9914 |
 | Features | 53 |
+| Árvores (early stopping por PR-AUC) | 233 |
 
 Split temporal estrito: Treino Jan–Abr/2025 | Validação Mai/2025 | Teste Jun/2025.
 O threshold de decisão é escolhido na **validação (Mai)** e aplicado intacto ao
@@ -155,7 +156,7 @@ uv run jupyter lab
 ```
 
 - `notebooks/04_feature_engineering.ipynb` — análise das 54 features Gold
-- `notebooks/05_modelo_preditivo.ipynb` — avalia modelo salvo, gera SHAP e gráficos (F1=0.6732)
+- `notebooks/05_modelo_preditivo.ipynb` — avalia modelo salvo, gera SHAP e gráficos (F1=0.6741)
 - `notebooks/06_insights_negocio.ipynb` — baseline vs LightGBM, impacto operacional, recomendações
 
 ### 6. Gerar dashboards HTML
@@ -199,12 +200,12 @@ Raw (parquet)
 ## Diferenciais da Solução
 
 - **Alarm Fingerprint:** presença dos 30 alarmes mais preditivos como features binárias — o "DNA do Don't Go"
-- **Predição com antecedência real:** target `is_dont_go_next_60m` — previsão 1h antes; multi-horizonte mantém ROC-AUC > 0.96 em até 4h (Sprint 3)
+- **Predição com antecedência real:** target `is_dont_go_next_60m` — previsão 1h antes; multi-horizonte mantém ROC-AUC > 0.94 (≈0,95 em 4h) em todos os horizontes (Sprint 3)
 - **Pipeline Medallion:** arquitetura de nível produção com camadas Bronze → Silver → Gold
 - **Explicabilidade por SHAP:** justificativa de cada previsão para o negócio
 - **Validação temporal estrita:** sem vazamento de informação futuro no treino
-- **Comparação formal de 5 modelos (Sprint 1):** baseline trivial, regra de negócio (F1=0.153), Logistic L1, Random Forest e LightGBM — ganho de **+340% de F1** do ML sobre a heurística operacional
-- **Decisão por custo, não só por F1 (Sprint 2):** FN custa 62× mais que FP; medindo o custo **por episódio de Don't Go** (1 episódio = 1 parada física, não por linha de telemetria), o threshold custo-ótimo economiza **~R$6 milhões no mês de teste** capturando ~99% das paradas reais. A versão por-linha (~R$285 M) superestimava e foi descontinuada
+- **Comparação formal de 5 modelos (Sprint 1):** baseline trivial, regra de negócio (F1=0.153), Logistic L1, Random Forest e LightGBM — ganho de **+341% de F1** do ML sobre a heurística operacional (LightGBM e Random Forest empatam em F1=0.674; LightGBM mantido como principal pela explicabilidade SHAP)
+- **Decisão por custo, não só por F1 (Sprint 2):** FN custa 62× mais que FP; medindo o custo **por episódio de Don't Go** (1 episódio = 1 parada física, não por linha de telemetria), o threshold custo-ótimo economiza **~R$26 milhões no mês de teste** capturando ~99,9% das paradas reais (5647/5652). A versão por-linha (~R$285 M) superestimava e foi descontinuada
 - **Calibração isotônica (Sprint 6):** Brier −89% — probabilidades absolutas confiáveis para precificação de manutenção
 - **Política de threshold por frota (Sprint 9):** F1 agregado +17% cortando ~46 mil falsos positivos; tabela de decisão deployável
 - **Detecção de drift (Sprint 8):** Page-Hinkley + KS para disparar re-treino em produção
@@ -225,7 +226,7 @@ O pipeline foi otimizado para rodar em máquinas com **16 GB de RAM**:
 - [x] Fase 1 — EDA (notebooks 01, 02, 03)
 - [x] Fase 2 — Pipeline ETL Silver (`src/ingestion.py`, `src/transformation.py`) → `outputs/silver/`
 - [x] Fase 3 — Feature Engineering Gold (`src/features.py`) → `outputs/gold/`
-- [x] Fase 4 — Modelagem ML (`src/models.py`, `src/retrain_optimized.py`) → F1=0.6732, ROC-AUC=0.9905 (threshold da validação, sem vazamento `Is_Dont_Go`)
+- [x] Fase 4 — Modelagem ML (`src/models.py`, `src/retrain_optimized.py`) → F1=0.6741, ROC-AUC=0.9924, PR-AUC=0.7018 (233 árvores, threshold da validação, sem vazamento `Is_Dont_Go`)
 - [x] Fase 5 — Visualizações e Relatório Final (`src/visualization.py`, `outputs/dashboards/`, `outputs/reports/`)
 - [x] Fase 6 — Insights de Negócio (`notebooks/06_insights_negocio.ipynb`, `09_story_dashboard.html`)
 - [x] **Sprints 1–12 — Análises avançadas** (`src/sprint1..12_*.py`, notebooks 05b–16): comparação de 5 modelos, análise de erros e custo, multi-horizonte, calibração isotônica, cronologia do CA65926, detecção de drift, política de threshold por frota, ensemble e modelo sequencial (resultados negativos documentados), diagnóstico do ponto cego da escavadeira

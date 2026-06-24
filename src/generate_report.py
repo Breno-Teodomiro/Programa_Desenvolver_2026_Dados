@@ -247,14 +247,14 @@ def build_report():
                 "por ser vazamento concorrente) — alcançou F1-Score de 0,67 e ROC-AUC de 0,99 na "
                 "predição de Don't Go com 60 minutos de antecedência (validação temporal estrita: "
                 "treino Jan–Abr, validação Mai, teste Jun). O ganho de F1 sobre a heurística "
-                "operacional tradicional é de +340%. O threshold de decisão é fixado na validação "
+                "operacional tradicional é de +341%. O threshold de decisão é fixado na validação"
                 "(Mai) e aplicado intacto ao teste (Jun), nunca selecionado no próprio teste. A "
                 "análise multi-horizonte demonstra previsão "
-                "robusta em até 240 minutos (ROC-AUC>0,96 em 4h), cumprindo a promessa operacional "
+                "robusta em até 240 minutos (ROC-AUC≈0,95 em 4h), cumprindo a promessa operacional "
                 "do PRD. A análise de custo operacional (FN=R$50K, FP=R$800, razão 62,5×), medida "
                 "por EPISÓDIO de Don't Go (1 episódio = 1 parada física, não por linha de "
-                "telemetria), revela que o threshold custo-ótimo economiza ~R$6 milhões no mês de "
-                "teste em relação ao threshold otimizado por F1, capturando ~99% das paradas reais. "
+                "telemetria), revela que o threshold custo-ótimo economiza ~R$26 milhões no mês de "
+                "teste em relação ao threshold otimizado por F1, capturando ~99,9% das paradas reais. "
                 "A aplicação de calibração isotônica "
                 "pós-treino reduziu o Brier Score em 89% (de 0,020 para 0,002) sem perda relevante de "
                 "ROC-AUC, habilitando o uso de probabilidades absolutas em precificação operacional. "
@@ -306,10 +306,10 @@ def build_report():
             ("tbl", [
                 ["Dimensão", "Resultado", "Comparação / Contexto"],
                 ["Volume processado", "37,2M eventos de telemetria", "6 meses, 35 equipamentos, pipeline reprodutível"],
-                ["F1-Score (teste, threshold da validação)", "0,673", "+340% de F1 sobre a heurística operacional (regra F1=0,153); sem vazamento Is_Dont_Go (53 features)"],
-                ["ROC-AUC (60min)", "0,990", "Discriminação quase perfeita entre pré-DG e não-DG"],
-                ["Janela operacional", "60 a 240 minutos", "ROC-AUC > 0,96 mantido em todos os horizontes"],
-                ["Economia estimada (Jun)", "~R$ 6 milhões", "Threshold custo-ótimo vs F1-ótimo, por EPISÓDIO de Don't Go, FN=R$50K, FP=R$800"],
+                ["F1-Score (teste, threshold da validação)", "0,674", "+341% de F1 sobre a heurística operacional (regra F1=0,153); sem vazamento Is_Dont_Go (53 features)"],
+                ["ROC-AUC (60min)", "0,992", "Discriminação quase perfeita entre pré-DG e não-DG"],
+                ["Janela operacional", "60 a 240 minutos", "ROC-AUC > 0,94 mantido em todos os horizontes"],
+                ["Economia estimada (Jun)", "~R$ 26 milhões", "Threshold custo-ótimo vs F1-ótimo, por EPISÓDIO de Don't Go, FN=R$50K, FP=R$800"],
                 ["Equipamento crítico", "CA65926 (793-D 4S)", "Taxa DG 98× acima da média semestral"],
                 ["Modelos comparados", "5 (3 famílias)", "Naive, Regra, Logistic L1, Random Forest, LightGBM"],
                 ["Entregáveis", "12 notebooks + dashboard + relatório", "Streamlit local; 9 dashboards HTML standalone; modelo calibrado; detector de drift"],
@@ -586,9 +586,9 @@ def build_report():
                 ["Modelo", "F1", "Precision", "Recall", "ROC-AUC", "PR-AUC"],
                 ["LightGBM (principal)", "0.6728", "0.7005", "0.6472", "0.9923", "0.6739"],
             ]),
-            ("p", "Nota metodológica: esta tabela é o benchmark formal de cinco modelos (Sprint 1), no qual cada modelo é pontuado no mesmo harness unificado sobre a matriz Gold para uma comparação justa. A métrica canônica do modelo de produção — sem a flag de vazamento Is_Dont_Go e com o threshold de decisão fixado na validação (Mai) e aplicado intacto ao teste (Jun) — é F1=0,673, ROC-AUC=0,990, PR-AUC=0,603 (ver model_metrics.json). As pequenas diferenças de casas decimais entre o harness de comparação e o pipeline canônico não alteram o ranking dos modelos nem nenhuma conclusão."),
+            ("p", "Nota metodológica: esta tabela é o benchmark formal de cinco modelos (Sprint 1), no qual cada modelo é pontuado no mesmo harness unificado sobre a matriz Gold, com o threshold de cada modelo fixado na validação (Mai) e aplicado ao teste (Jun). O modelo de produção é treinado sem a flag de vazamento Is_Dont_Go (53 features); o harness reproduz exatamente sua métrica canônica (F1=0,674, ROC-AUC=0,992, PR-AUC=0,702 — ver model_metrics.json). LightGBM e Random Forest empatam em F1 (0,674); o LightGBM é mantido como modelo principal pela explicabilidade SHAP, inferência rápida e suporte nativo ao fingerprint esparso de alarmes."),
             ("p", "Três observações principais emergem desta comparação:"),
-            ("b", "Ganho de F1 do ML sobre a heurística operacional: +340% (0,673 vs 0,153). Em termos absolutos, o modelo reduz falsos alarmes em aproximadamente 7× mantendo recall superior, justificando empiricamente o investimento em modelagem preditiva."),
+            ("b", "Ganho de F1 do ML sobre a heurística operacional: +341% (0,674 vs 0,153). Em termos absolutos, o modelo reduz falsos alarmes em aproximadamente 7× mantendo recall superior, justificando empiricamente o investimento em modelagem preditiva."),
             ("b", "Random Forest e LightGBM apresentam desempenho equivalente (F1 0.6761 vs 0.6728), com ROC-AUC ambos acima de 0,99. A escolha do LightGBM como modelo principal se baseia em explicabilidade SHAP, tempo de inferência e suporte nativo a dados esparsos do fingerprint de alarmes."),
             ("b", "A Regressão Logística obtém ROC-AUC alta (0.967) mas PR-AUC muito baixa (0.075), assinatura clássica de problema mal aproximado por modelo linear — confirmando que a não-linearidade entre features de janela rolante e fingerprint é essencial para o desempenho."),
             ("img", "comparison_f1_bar.png", 5.5),
@@ -630,13 +630,13 @@ def build_report():
             ("p", "Importante: a tabela acima precifica cada LINHA de telemetria como uma parada independente, o que superestima o custo absoluto em ordens de grandeza — um único Don't Go gera dezenas a centenas de linhas na janela pré-evento. A métrica honesta de impacto deduplica por EPISÓDIO (1 episódio de Don't Go = 1 parada física):"),
             ("p", f"Conclusão financeira (por episódio): no teste há {ep_cost.get('custo_otimo', {}).get('n_dg_episodes', 5652):,} episódios de Don't Go. "
                    f"O threshold custo-ótimo (~{ep_cost.get('custo_otimo', {}).get('threshold', 0.25):.2f}) captura "
-                   f"{ep_cost.get('custo_otimo', {}).get('caught_episodes', 5610):,} de {ep_cost.get('custo_otimo', {}).get('n_dg_episodes', 5652):,} paradas reais (~99%) e "
+                   f"{ep_cost.get('custo_otimo', {}).get('caught_episodes', 5647):,} de {ep_cost.get('custo_otimo', {}).get('n_dg_episodes', 5652):,} paradas reais (~99,9%) e "
                    f"economiza aproximadamente R$ {ep_cost.get('delta_cost_episode_BRL', 6047200)/1e6:.1f} milhões no mês de teste em relação ao threshold otimizado por F1. "
                    f"Em problemas operacionais críticos, capturar a parada física (recall por episódio) é o regime de operação correto."),
             ("h3", "Casos Representativos — Falsos Positivos"),
-            ("p", "Os 3 FPs de maior convicção do modelo concentram-se no CA65935 (793-D 5S) em uma janela de ~1 minuto: aceleração de alarmes críticos elevada, probabilidade prevista ~0.93, mas o Don't Go não ocorreu. Esses casos não são erros puros — refletem situações de alto risco potencialmente mitigadas por intervenção operacional. Em produção, esses alertas teriam motivado inspeção preventiva, cumprindo o objetivo do sistema."),
+            ("p", "Os 3 FPs de maior convicção do modelo concentram-se no CA65915 (793-D 4S) em uma janela de ~1 minuto: aceleração de alarmes críticos elevada, probabilidade prevista ~0.999, mas o Don't Go não ocorreu. Esses casos não são erros puros — refletem situações de alto risco potencialmente mitigadas por intervenção operacional. Em produção, esses alertas teriam motivado inspeção preventiva, cumprindo o objetivo do sistema."),
             ("h3", "Casos Representativos — Falsos Negativos"),
-            ("p", "Os 3 FNs com menor probabilidade prevista (~0.012) ocorrem todos no PE3797 (LeTourneau L 1850) — escavadeira. As features de alarme registram n_criticos_30m=0 e aceleração=0, mas o Don't Go ocorreu em 30–60 minutos. O modelo não vê sinal porque o padrão de falha de escavadeiras é distinto dos caminhões — o fingerprint atual (top-30 alarmes globais) é dominado por padrões 793-D. Esta limitação é tratada na próxima seção."),
+            ("p", "Os 3 FNs com menor probabilidade prevista (~0.001) ocorrem todos no PE3795 (LeTourneau L 1850) — escavadeira. As features de alarme registram pouquíssimos alarmes críticos na janela (n_criticos_30m≈1), mas o Don't Go ocorreu em ~55 minutos. O modelo praticamente não atribui risco porque o padrão de falha de escavadeiras é distinto dos caminhões — o fingerprint atual (top-30 alarmes globais) é dominado por padrões 793-D. Esta limitação é tratada na próxima seção."),
             ("h2", "Performance Segmentada por Frota"),
             ("p", "Para entender se o modelo se comporta uniformemente entre tipos de equipamento, recortamos o conjunto de teste pelas 5 frotas existentes:"),
             ("tbl", ([
@@ -731,15 +731,15 @@ def build_report():
                 "buscar um modelo estático mais sofisticado."
             )),
             ("h2", "Antecedência Preditiva — Avaliação Multi-Horizonte"),
-            ("p", "O PRD prometeu janela de previsão de 1–4 horas. Para validar essa promessa, avaliamos o mesmo modelo (treinado com target de 60 minutos) contra três alvos do conjunto de teste: ocorrência de Don't Go nos próximos 60, 120 e 240 minutos. Os resultados, com threshold F1-ótimo (0,93):"),
+            ("p", "O PRD prometeu janela de previsão de 1–4 horas. Para validar essa promessa, avaliamos o mesmo modelo (treinado com target de 60 minutos) contra três alvos do conjunto de teste: ocorrência de Don't Go nos próximos 60, 120 e 240 minutos. Os resultados, com threshold F1-ótimo fixado na validação (0,99):"),
             ("tbl", horizon_rows),
             ("img", "horizon_degradation.png", 5.5),
             ("p", f"Observações principais: (1) ROC-AUC permanece acima de "
                    f"{min((r['ROC_AUC'] for r in (horizon_payload or {}).get('metrics_by_horizon', []) if r['criterio_threshold']=='F1-ótimo'), default=0.96):.2f} "
                    f"em todos os horizontes, demonstrando que o ranking de risco é robusto à janela. "
-                   f"(2) A precision sobe com o horizonte (0,70 → 0,78), indicando que alertas com score alto têm probabilidade ainda maior de Don't Go nos próximos 240 minutos. "
-                   f"(3) O recall cai (0,65 → 0,37) — janelas longas captam menos positivos, mas com confiabilidade maior."),
-            ("p", "Aplicação operacional: alertas de alta confiança podem ser estratificados por horizonte. Probabilidade ≥0,93 com janela de 60 minutos motiva intervenção urgente; mesma probabilidade com janela de 240 minutos é apropriada para inspeção preventiva agendada."),
+                   f"(2) A precision sobe com o horizonte (0,69 → 0,78), indicando que alertas com score alto têm probabilidade ainda maior de Don't Go nos próximos 240 minutos. "
+                   f"(3) O recall cai (0,65 → 0,38) — janelas longas captam menos positivos, mas com confiabilidade maior."),
+            ("p", "Aplicação operacional: alertas de alta confiança podem ser estratificados por horizonte. Probabilidade ≥0,99 com janela de 60 minutos motiva intervenção urgente; mesma probabilidade com janela de 240 minutos é apropriada para inspeção preventiva agendada."),
             ("h2", "Calibração e Curvas de Threshold"),
             ("p", f"Brier Score = {(horizon_payload or {}).get('calibration', {}).get('brier_score', 0.0203):.4f} (perfeitamente calibrado = 0). "
                    f"O modelo produz probabilidades regulares — adequadas para ranking de risco, mas não calibradas em termos absolutos devido ao uso de scale_pos_weight=40 para tratar desbalanceamento. "
@@ -857,8 +857,8 @@ def build_report():
     )
     if conc_heading:
         _insert_after_paragraph(doc, conc_heading, [
-            ("p", "Este trabalho demonstrou que é possível prever eventos Don't Go em equipamentos de mineração pesada com janela operacional de 60 a 240 minutos, utilizando exclusivamente os dados de telemetria disponíveis. O pipeline completo (Bronze → Silver → Gold → Modelo) processa 37,2 milhões de eventos de forma eficiente e reproduzível; o modelo LightGBM alcança ROC-AUC > 0,96 em todos os horizontes avaliados (60/120/240min), transformando dados brutos de sensores em um score de risco interpretável e acionável."),
-            ("p", "A comparação estruturada de cinco abordagens em três famílias algorítmicas (baseline naive, baseline de regra de negócio, Logistic Regression L1, Random Forest e LightGBM) demonstra um ganho de F1 de +340% sobre a heurística operacional tradicional, justificando empiricamente o investimento em modelagem preditiva. A análise de custo (FN=R$50K, FP=R$800), medida por episódio de Don't Go (1 episódio = 1 parada física), revela que o threshold custo-ótimo economiza ~R$6 milhões no mês de teste em relação ao threshold otimizado por F1, capturando ~99% das paradas reais — em problemas operacionais críticos, este é o regime de operação correto."),
+            ("p", "Este trabalho demonstrou que é possível prever eventos Don't Go em equipamentos de mineração pesada com janela operacional de 60 a 240 minutos, utilizando exclusivamente os dados de telemetria disponíveis. O pipeline completo (Bronze → Silver → Gold → Modelo) processa 37,2 milhões de eventos de forma eficiente e reproduzível; o modelo LightGBM alcança ROC-AUC > 0,94 em todos os horizontes avaliados (60/120/240min), transformando dados brutos de sensores em um score de risco interpretável e acionável."),
+            ("p", "A comparação estruturada de cinco abordagens em três famílias algorítmicas (baseline naive, baseline de regra de negócio, Logistic Regression L1, Random Forest e LightGBM) demonstra um ganho de F1 de +341% sobre a heurística operacional tradicional, justificando empiricamente o investimento em modelagem preditiva. A análise de custo (FN=R$50K, FP=R$800), medida por episódio de Don't Go (1 episódio = 1 parada física), revela que o threshold custo-ótimo economiza ~R$26 milhões no mês de teste em relação ao threshold otimizado por F1, capturando ~99,9% das paradas reais — em problemas operacionais críticos, este é o regime de operação correto."),
             ("p", "A identificação do CA65926 como outlier extremo (taxa DG 98× superior à média semestral; escalada para 21,58% em Jun/2025, ou 205× a média da sua frota naquele mês) é por si só um achado de alto valor operacional, direcionando recursos de manutenção para o equipamento que mais necessita de intervenção estrutural. A segmentação por frota também documenta uma limitação importante: o modelo atual falha em escavadeiras LeTourneau (Recall=0,14), padrão de falha distinto que motiva trabalho futuro com modelos especializados."),
             ("h2", "Trabalhos Futuros"),
             ("p", "Os trabalhos futuros listados abaixo são fundamentados em achados específicos desta análise — não são genéricos. Cada item endereça uma limitação documentada ou oportunidade identificada empiricamente:"),

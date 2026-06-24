@@ -12,7 +12,8 @@
 > refinamento, documentados no `README.md`, no relatório final
 > (`outputs/reports/`) e no `GUIA_APRESENTACAO.md`. Ajuste relevante de meta: o
 > alvo inicial de **F1 ≥ 0,75** foi reavaliado empiricamente — o modelo final
-> alcança **F1 = 0,689**, comprovadamente o teto do conjunto de features atual
+> alcança **F1 = 0,674** (sem vazamento `Is_Dont_Go`, threshold da validação),
+> comprovadamente o teto do conjunto de features atual
 > (validado pelo experimento de ensemble do Sprint 10, que não o superou; ganho
 > adicional exigiria novas fontes de dados, não mais modelagem). As hipóteses
 > H1–H7 da Seção 8 foram testadas, com **H4, H6 e H7 refutadas com evidência**.
