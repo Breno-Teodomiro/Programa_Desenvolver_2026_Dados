@@ -31,16 +31,17 @@ PARTICIPANTE = {
 
 
 def _load_metrics() -> dict:
-    if METRICS_FILE.exists():
-        with open(METRICS_FILE) as f:
-            return json.load(f)
-    return {
-        "roc_auc": 0.9916, "pr_auc": 0.5740,
-        "f1_score": 0.6785, "precision": 0.7096,
-        "recall": 0.6500, "optimal_threshold": 0.1313,
-        "n_samples": 7854243, "n_positivos": 35203,
-        "taxa_positivos_pct": 0.45,
-    }
+    # model_metrics.json é versionado e gerado por retrain_optimized.py. Em vez de
+    # cair silenciosamente em números antigos (que divergiriam do README e do
+    # relatório), falhamos de forma explícita: o relatório nunca deve ser gerado
+    # com métricas obsoletas.
+    if not METRICS_FILE.exists():
+        raise FileNotFoundError(
+            f"Métricas não encontradas em {METRICS_FILE}. Gere-as com "
+            f"`uv run python3 src/retrain_optimized.py` antes de gerar o relatório."
+        )
+    with open(METRICS_FILE) as f:
+        return json.load(f)
 
 
 def _load_comparison() -> dict | None:

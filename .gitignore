@@ -17,7 +17,12 @@ __pycache__/
 # Outputs intermediários gerados (regeneráveis pelo pipeline)
 outputs/bronze/
 outputs/silver/
-outputs/gold/
+# Gold: ignora apenas os artefatos PESADOS e regeneráveis (parquets de feature
+# matrix + Random Forest de 82 MB). O modelo de produção (lgbm_dontgo.pkl),
+# calibradores e todos os JSONs de resultado SÃO versionados e acompanham a
+# entrega, para que relatório, app.py e generate_report.py rodem sem o pipeline.
+outputs/gold/*.parquet
+outputs/gold/random_forest.pkl
 
 # Logs de execução dos sprints (artefatos de build, regeneráveis)
 outputs/*.log

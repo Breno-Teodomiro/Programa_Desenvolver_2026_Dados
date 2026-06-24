@@ -1,0 +1,128 @@
+{
+  "cost_assumptions": {
+    "COST_FN_BRL": 50000,
+    "COST_FP_BRL": 800,
+    "ratio_FN_FP": 62.5,
+    "rationale": "FN = parada n\u00e3o planejada ~4h \u00d7 R$12.500/h. FP = inspe\u00e7\u00e3o preventiva ~1h."
+  },
+  "best_f1_threshold_val": 0.32,
+  "best_cost_threshold_val": 0.25,
+  "test_results_by_threshold": {
+    "f1_optimo": {
+      "threshold": 0.32,
+      "TP": 29463,
+      "TN": 7711278,
+      "FP": 107762,
+      "FN": 5740,
+      "F1": 0.3417426404064305,
+      "precision": 0.2147057751867371,
+      "recall": 0.8369457148538477,
+      "cost_BRL": 373209600
+    },
+    "custo_otimo": {
+      "threshold": 0.25,
+      "TP": 32454,
+      "TN": 7565175,
+      "FP": 253865,
+      "FN": 2749,
+      "F1": 0.20187732099203165,
+      "precision": 0.11334909663696786,
+      "recall": 0.9219100644831406,
+      "cost_BRL": 340542000
+    }
+  },
+  "delta_cost_test_BRL": 32667600,
+  "delta_cost_test_note": "Valor por LINHA de telemetria \u2014 superestima (cada epis\u00f3dio de DG gera muitas linhas). Use episode_level_cost.",
+  "episode_level_cost": {
+    "note": "Custo deduplicado: 1 epis\u00f3dio de Don't Go = 1 parada f\u00edsica. M\u00e9trica honesta de impacto operacional.",
+    "gap_min_fp_cluster": 60,
+    "f1_optimo": {
+      "threshold": 0.32,
+      "n_dg_episodes": 5652,
+      "caught_episodes": 5484,
+      "missed_episodes": 168,
+      "fp_episodes": 1617,
+      "cost_BRL": 9693600
+    },
+    "custo_otimo": {
+      "threshold": 0.25,
+      "n_dg_episodes": 5652,
+      "caught_episodes": 5610,
+      "missed_episodes": 42,
+      "fp_episodes": 1933,
+      "cost_BRL": 3646400
+    },
+    "delta_cost_episode_BRL": 6047200
+  },
+  "cases_fp": [
+    {
+      "Data_Evento": "2025-06-01 14:42:10.967000",
+      "TAG": "CA65921",
+      "Tag_Frota": "793-D 4S",
+      "y_prob": 0.3299540417390311,
+      "n_criticos_30m": 1.0,
+      "n_criticos_60m": 1.0,
+      "aceleracao_criticos": 3.9840637450199203,
+      "minutes_to_next_dg": 4677.0
+    },
+    {
+      "Data_Evento": "2025-06-01 14:43:32.817000",
+      "TAG": "CA65921",
+      "Tag_Frota": "793-D 4S",
+      "y_prob": 0.3299540417390311,
+      "n_criticos_30m": 2.0,
+      "n_criticos_60m": 2.0,
+      "aceleracao_criticos": 3.992015968063872,
+      "minutes_to_next_dg": 4676.0
+    },
+    {
+      "Data_Evento": "2025-06-01 14:52:15.780000",
+      "TAG": "CA65921",
+      "Tag_Frota": "793-D 4S",
+      "y_prob": 0.3299540417390311,
+      "n_criticos_30m": 2.0,
+      "n_criticos_60m": 2.0,
+      "aceleracao_criticos": 3.992015968063872,
+      "minutes_to_next_dg": 4667.0
+    }
+  ],
+  "cases_fn": [
+    {
+      "Data_Evento": "2025-06-02 11:40:18.880000",
+      "TAG": "PE3797",
+      "Tag_Frota": "LeTourneau L 1850",
+      "y_prob": 0.13633747818220204,
+      "n_criticos_30m": 0.0,
+      "n_criticos_60m": 0.0,
+      "aceleracao_criticos": 0.0,
+      "minutes_to_next_dg": 60.0
+    },
+    {
+      "Data_Evento": "2025-06-02 11:40:20.440000",
+      "TAG": "PE3797",
+      "Tag_Frota": "LeTourneau L 1850",
+      "y_prob": 0.13633747818220204,
+      "n_criticos_30m": 0.0,
+      "n_criticos_60m": 0.0,
+      "aceleracao_criticos": 0.0,
+      "minutes_to_next_dg": 60.0
+    },
+    {
+      "Data_Evento": "2025-06-02 11:40:21.307000",
+      "TAG": "PE3797",
+      "Tag_Frota": "LeTourneau L 1850",
+      "y_prob": 0.13633747818220204,
+      "n_criticos_30m": 0.0,
+      "n_criticos_60m": 0.0,
+      "aceleracao_criticos": 0.0,
+      "minutes_to_next_dg": 60.0
+    }
+  ],
+  "summary_test": {
+    "n_test": 7854243,
+    "n_positives": 35203,
+    "tp_total": 32454,
+    "fp_total": 253865,
+    "fn_total": 2749
+  }
+}

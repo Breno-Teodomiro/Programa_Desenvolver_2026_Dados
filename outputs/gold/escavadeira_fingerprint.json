@@ -1,0 +1,457 @@
+{
+  "base_rate_escavadeira": 0.0037593679837057063,
+  "base_rate_caminhao": 0.12363324225423956,
+  "min_support": 300,
+  "escavadeira_top_alarms_by_lift": [
+    {
+      "Id_Alarme": 1074008237,
+      "Alarme": "Channel Forced (L-1850)",
+      "suporte": 8094,
+      "n_pre_dg": 1351,
+      "taxa_pre_dg": 0.16691376328144306,
+      "lift": 44.39942139340982,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 16830311,
+      "Alarme": "MC - TEMPERATURA DO PTO >90\u00b0C",
+      "suporte": 1791,
+      "n_pre_dg": 193,
+      "taxa_pre_dg": 0.10776102735901731,
+      "lift": 28.664665929509376,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1074008199,
+      "Alarme": "Hydraulic Reservoir Air Pressure High (L-1850)",
+      "suporte": 2534,
+      "n_pre_dg": 39,
+      "taxa_pre_dg": 0.015390686661404893,
+      "lift": 4.093955879848159,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1241586690,
+      "Alarme": "Fan Drive State - Excessive Engine Air Temperature",
+      "suporte": 652,
+      "n_pre_dg": 10,
+      "taxa_pre_dg": 0.015337423312883436,
+      "lift": 4.079787714147882,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1074008236,
+      "Alarme": "Bucket Critical Overload: Dump Some Load And Reweigh (L-1850)",
+      "suporte": 1864,
+      "n_pre_dg": 26,
+      "taxa_pre_dg": 0.013948497854077254,
+      "lift": 3.7103305434675375,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1074008005,
+      "Alarme": "Bucket Critical Overload (L-1850)",
+      "suporte": 1904,
+      "n_pre_dg": 26,
+      "taxa_pre_dg": 0.01365546218487395,
+      "lift": 3.6323824228064545,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1074008006,
+      "Alarme": "Bucket Overload (L-1850)",
+      "suporte": 13797,
+      "n_pre_dg": 179,
+      "taxa_pre_dg": 0.01297383489164311,
+      "lift": 3.4510680911993257,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1074008250,
+      "Alarme": "Red Alarm(s) Active (L-1850)",
+      "suporte": 931,
+      "n_pre_dg": 11,
+      "taxa_pre_dg": 0.011815252416756176,
+      "lift": 3.1428826515433523,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 16834563,
+      "Alarme": "MC - ALTA TEMP. ARREF. DO MOTOR >90\u00b0C",
+      "suporte": 3748,
+      "n_pre_dg": 37,
+      "taxa_pre_dg": 0.009871931696905017,
+      "lift": 2.6259551445064973,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1074008172,
+      "Alarme": "Front Driver Lubrication Flow Switch Fault (L-1850)",
+      "suporte": 338,
+      "n_pre_dg": 3,
+      "taxa_pre_dg": 0.008875739644970414,
+      "lift": 2.3609659079506677,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1074008015,
+      "Alarme": "Engine Yellow Lamp Active (L-1850)",
+      "suporte": 1895,
+      "n_pre_dg": 10,
+      "taxa_pre_dg": 0.005277044854881266,
+      "lift": 1.4037053243400628,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1241579521,
+      "Alarme": "Engine \\/ Retarder Torque Mode - Accelerator Pedal\\/Operator Selection",
+      "suporte": 6321688,
+      "n_pre_dg": 28554,
+      "taxa_pre_dg": 0.0045168315804259875,
+      "lift": 1.2014869520630511,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 1241579532,
+      "Alarme": "Engine \\/ Retarder Torque Mode - Not Defined\\/Not Available",
+      "suporte": 7701070,
+      "n_pre_dg": 34440,
+      "taxa_pre_dg": 0.0044721058242555905,
+      "lift": 1.1895898043604978,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 1074008258,
+      "Alarme": "Left Steer Limited By End Of Travel (L-1850)",
+      "suporte": 728765,
+      "n_pre_dg": 3218,
+      "taxa_pre_dg": 0.00441568955699025,
+      "lift": 1.1745829554673153,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 1074008260,
+      "Alarme": "Raise Hoist Limited By End Of Travel (L-1850)",
+      "suporte": 132101,
+      "n_pre_dg": 583,
+      "taxa_pre_dg": 0.004413289831265471,
+      "lift": 1.1739446232436064,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 1074008261,
+      "Alarme": "Right Steer Limited By End Of Travel (L-1850)",
+      "suporte": 327756,
+      "n_pre_dg": 1438,
+      "taxa_pre_dg": 0.00438741014657245,
+      "lift": 1.1670605712419955,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 1074008234,
+      "Alarme": "Battery Voltage > 19V (L-1850)",
+      "suporte": 3879,
+      "n_pre_dg": 17,
+      "taxa_pre_dg": 0.004382572828048466,
+      "lift": 1.1657738340710266,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1074008262,
+      "Alarme": "Rollback Stick Limited By End Of Travel (L-1850)",
+      "suporte": 840312,
+      "n_pre_dg": 3326,
+      "taxa_pre_dg": 0.003958053675301555,
+      "lift": 1.0528508229194415,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 1074008265,
+      "Alarme": "Truck Load Weight (L-1850)",
+      "suporte": 113876,
+      "n_pre_dg": 441,
+      "taxa_pre_dg": 0.00387263339070568,
+      "lift": 1.0301288427977526,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 1074008150,
+      "Alarme": "Ambient Temperature Sensor Or Cable Fail Low (L-1850)",
+      "suporte": 1599,
+      "n_pre_dg": 6,
+      "taxa_pre_dg": 0.00375234521575985,
+      "lift": 0.9981319285645099,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1074008264,
+      "Alarme": "Bucket Load Weight (L-1850)",
+      "suporte": 669669,
+      "n_pre_dg": 2470,
+      "taxa_pre_dg": 0.0036883893386135537,
+      "lift": 0.9811195271652585,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 1241579528,
+      "Alarme": "Engine \\/ Retarder Torque Mode - Torque Limiting",
+      "suporte": 2273155,
+      "n_pre_dg": 8156,
+      "taxa_pre_dg": 0.0035879647450349846,
+      "lift": 0.9544063684604334,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 1074008255,
+      "Alarme": "Vehicle Speed Too Low (L-1850)",
+      "suporte": 6038227,
+      "n_pre_dg": 21304,
+      "taxa_pre_dg": 0.0035281879929323625,
+      "lift": 0.9385056233453731,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 1074008254,
+      "Alarme": "Vehicle Speed Too High (L-1850)",
+      "suporte": 3369393,
+      "n_pre_dg": 11719,
+      "taxa_pre_dg": 0.0034780745374611986,
+      "lift": 0.9251753359969753,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 1074008148,
+      "Alarme": "Accessory Pump Pressure Low (L-1850)",
+      "suporte": 93968,
+      "n_pre_dg": 324,
+      "taxa_pre_dg": 0.003447982291844032,
+      "lift": 0.917170733694781,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1074008247,
+      "Alarme": "Lift Arms Too High (L-1850)",
+      "suporte": 723697,
+      "n_pre_dg": 2481,
+      "taxa_pre_dg": 0.0034282303229113843,
+      "lift": 0.9119166673149376,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 16833714,
+      "Alarme": "TESTE-OP ENTRADA ARTICULADA",
+      "suporte": 16752,
+      "n_pre_dg": 57,
+      "taxa_pre_dg": 0.0034025787965616047,
+      "lift": 0.9050933059252143,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1074008256,
+      "Alarme": "Dump Stick Limited By End Of Travel (L-1850)",
+      "suporte": 86501,
+      "n_pre_dg": 292,
+      "taxa_pre_dg": 0.0033756835181096173,
+      "lift": 0.8979391037910895,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 1074008235,
+      "Alarme": "Bucket Angle At Or Above Level (L-1850)",
+      "suporte": 1150075,
+      "n_pre_dg": 3711,
+      "taxa_pre_dg": 0.0032267460817772754,
+      "lift": 0.8583214241763554,
+      "no_top30_global": true
+    },
+    {
+      "Id_Alarme": 1074008238,
+      "Alarme": "Engine At High Throttle (L-1850)",
+      "suporte": 20400,
+      "n_pre_dg": 64,
+      "taxa_pre_dg": 0.003137254901960784,
+      "lift": 0.8345165771370726,
+      "no_top30_global": false
+    }
+  ],
+  "caminhao_top_alarms_by_lift": [
+    {
+      "Id_Alarme": 84609434,
+      "Alarme": "Right Front Brake Temperature - Inactive",
+      "suporte": 4161,
+      "n_pre_dg": 4128,
+      "taxa_pre_dg": 0.9920692141312184,
+      "lift": 8.02429181701088,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84609435,
+      "Alarme": "Right Front Brake Temperature - Active",
+      "suporte": 4163,
+      "n_pre_dg": 4123,
+      "taxa_pre_dg": 0.9903915445592121,
+      "lift": 8.010722088178918,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84608753,
+      "Alarme": "Engine Coolant Level - Active",
+      "suporte": 91813,
+      "n_pre_dg": 81410,
+      "taxa_pre_dg": 0.8866936054807053,
+      "lift": 7.171967581803828,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84608752,
+      "Alarme": "Engine Coolant Level - Inactive",
+      "suporte": 91770,
+      "n_pre_dg": 81334,
+      "taxa_pre_dg": 0.8862809196905307,
+      "lift": 7.168629597758032,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84607073,
+      "Alarme": "Engine Coolant Level - Active",
+      "suporte": 526,
+      "n_pre_dg": 466,
+      "taxa_pre_dg": 0.8859315589353612,
+      "lift": 7.165803814426628,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84609797,
+      "Alarme": "Engine Coolant Level - Active",
+      "suporte": 535,
+      "n_pre_dg": 472,
+      "taxa_pre_dg": 0.8822429906542056,
+      "lift": 7.135969053047723,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84607071,
+      "Alarme": "Aftercooler Level - Active",
+      "suporte": 901,
+      "n_pre_dg": 783,
+      "taxa_pre_dg": 0.8690344062153164,
+      "lift": 7.029132216950461,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84609796,
+      "Alarme": "Engine Coolant Level - Inactive",
+      "suporte": 531,
+      "n_pre_dg": 458,
+      "taxa_pre_dg": 0.8625235404896422,
+      "lift": 6.976469473444267,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84609806,
+      "Alarme": "Aftercooler Level - Inactive",
+      "suporte": 524,
+      "n_pre_dg": 436,
+      "taxa_pre_dg": 0.8320610687022901,
+      "lift": 6.730075613411793,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84607072,
+      "Alarme": "Engine Coolant Level - Inactive",
+      "suporte": 495,
+      "n_pre_dg": 408,
+      "taxa_pre_dg": 0.8242424242424242,
+      "lift": 6.666834980736419,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84609807,
+      "Alarme": "Aftercooler Level - Active",
+      "suporte": 530,
+      "n_pre_dg": 428,
+      "taxa_pre_dg": 0.8075471698113208,
+      "lift": 6.531796425355243,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84607068,
+      "Alarme": "Aftercooler Level - Inactive",
+      "suporte": 333,
+      "n_pre_dg": 260,
+      "taxa_pre_dg": 0.7807807807807807,
+      "lift": 6.315298107083385,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84607070,
+      "Alarme": "Aftercooler Level - Inactive",
+      "suporte": 837,
+      "n_pre_dg": 653,
+      "taxa_pre_dg": 0.7801672640382318,
+      "lift": 6.310335714029846,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84607069,
+      "Alarme": "Aftercooler Level - Active",
+      "suporte": 357,
+      "n_pre_dg": 271,
+      "taxa_pre_dg": 0.7591036414565826,
+      "lift": 6.139963877154988,
+      "no_top30_global": false
+    },
+    {
+      "Id_Alarme": 84609410,
+      "Alarme": "Steering Oil Temperature - Inactive",
+      "suporte": 2517,
+      "n_pre_dg": 1870,
+      "taxa_pre_dg": 0.742947953913389,
+      "lift": 6.009289575902166,
+      "no_top30_global": false
+    }
+  ],
+  "global_top30_freq_ids": [
+    84612124,
+    84612125,
+    84626976,
+    84626977,
+    84626978,
+    84626979,
+    335609914,
+    335609927,
+    335609934,
+    335609935,
+    1074008235,
+    1074008247,
+    1074008254,
+    1074008255,
+    1074008257,
+    1074008258,
+    1074008259,
+    1074008260,
+    1074008261,
+    1074008262,
+    1074008263,
+    1074008264,
+    1074008265,
+    1241579521,
+    1241579528,
+    1241579532,
+    1241582848,
+    1241582851,
+    1241645024,
+    1241645025
+  ],
+  "overlap_count_esc_lift_vs_global_freq": 13,
+  "coverage_pre_dg_escavadeira": {
+    "global_top30_freq": 0.9753956789348072,
+    "escavadeira_top30_lift": 0.977311267428715
+  },
+  "diagnostics": {
+    "max_lift_escavadeira": 44.39942139340982,
+    "max_rate_escavadeira": 0.16691376328144306,
+    "n_alarms_lift_ge_5_escavadeira": 2,
+    "max_lift_caminhao": 8.02429181701088
+  }
+}

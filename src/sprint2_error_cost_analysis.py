@@ -37,6 +37,59 @@ COST_FP = 800      # Alarme falso: inspeção preventiva desnecessária
 # Razão FN/FP = 62.5 → threshold ótimo por custo deve favorecer recall
 
 
+# ── Custo por EPISÓDIO (não por linha de telemetria) ─────────────────────────
+# Um único Don't Go gera dezenas/centenas de linhas de evento na janela pré-DG.
+# Precificar cada linha como uma parada independente de R$50k superestima o custo
+# em ordens de grandeza. Aqui deduplicamos: 1 episódio de DG = 1 parada física.
+
+def _count_dg_episodes(df_pos: pd.DataFrame) -> pd.DataFrame:
+    """Agrupa linhas pré-DG pelo Don't Go futuro a que apontam (1 grupo = 1 parada).
+
+    O instante do DG ≈ Data_Evento + minutes_to_next_dg; linhas que apontam para o
+    mesmo DG compartilham essa chave. Episódio é "capturado" se o modelo dispara
+    (y_pred=1) em ao menos uma linha da janela.
+    """
+    d = df_pos.copy()
+    d["Data_Evento"] = pd.to_datetime(d["Data_Evento"])
+    d["dg_time"] = d["Data_Evento"] + pd.to_timedelta(
+        d["minutes_to_next_dg"].fillna(0).clip(lower=0), unit="m")
+    d["dg_key"] = d["dg_time"].dt.floor("min")
+    return d.groupby(["TAG", "dg_key"])["y_pred"].max().reset_index()
+
+
+def _count_fp_episodes(df_fp: pd.DataFrame, gap_min: int = 60) -> int:
+    """Conta rajadas de falsos alarmes por equipamento (gap > gap_min inicia nova).
+
+    Cada rajada equivale a uma inspeção preventiva desnecessária despachada.
+    """
+    if len(df_fp) == 0:
+        return 0
+    d = df_fp.copy()
+    d["Data_Evento"] = pd.to_datetime(d["Data_Evento"])
+    n = 0
+    for _tag, g in d.sort_values("Data_Evento").groupby("TAG"):
+        t = g["Data_Evento"].values
+        if len(t) == 0:
+            continue
+        gaps = np.diff(t).astype("timedelta64[m]").astype(float)
+        n += 1 + int((gaps > gap_min).sum())
+    return n
+
+
+def compute_episode_cost(meta: pd.DataFrame, threshold: float,
+                         cost_fn: int, cost_fp: int, gap_min: int = 60) -> dict:
+    yp = (meta["y_prob"].values >= threshold).astype(int)
+    m = meta.assign(y_pred=yp)
+    ep = _count_dg_episodes(m[m["y_true"] == 1])
+    n_ep = len(ep)
+    missed = int((ep["y_pred"] == 0).sum())
+    fp_ep = _count_fp_episodes(m[(m["y_true"] == 0) & (m["y_pred"] == 1)], gap_min)
+    cost = missed * cost_fn + fp_ep * cost_fp
+    return {"threshold": float(threshold), "n_dg_episodes": int(n_ep),
+            "caught_episodes": int(n_ep - missed), "missed_episodes": int(missed),
+            "fp_episodes": int(fp_ep), "cost_BRL": int(cost)}
+
+
 def main():
     print("== Carregando modelo e dados ==")
     lgbm = load_model("lgbm_dontgo")
@@ -153,6 +206,19 @@ def main():
     meta["y_pred"] = y_pred
     meta["y_prob"] = y_prob_test
 
+    # ── Custo por EPISÓDIO (deduplicado) — métrica honesta de impacto ─────────
+    print("\n== Custo por EPISÓDIO de Don't Go (não por linha de evento) ==")
+    ep_f1 = compute_episode_cost(meta, best_f1_thr, COST_FN, COST_FP)
+    ep_cost = compute_episode_cost(meta, best_cost_thr, COST_FN, COST_FP)
+    episode_delta = ep_f1["cost_BRL"] - ep_cost["cost_BRL"]
+    print(f"  Episódios de DG no teste: {ep_f1['n_dg_episodes']:,} "
+          f"(vs {int(meta['y_true'].sum()):,} linhas pré-DG)")
+    print(f"  [F1-ótimo   thr={best_f1_thr:.2f}] perdidos={ep_f1['missed_episodes']}  "
+          f"FP_ep={ep_f1['fp_episodes']}  custo=R${ep_f1['cost_BRL']:,}")
+    print(f"  [custo-ótimo thr={best_cost_thr:.2f}] perdidos={ep_cost['missed_episodes']}  "
+          f"FP_ep={ep_cost['fp_episodes']}  custo=R${ep_cost['cost_BRL']:,}")
+    print(f"  Economia por episódio (custo-ótimo vs F1-ótimo): R${episode_delta:,}")
+
     fp_mask = (meta["y_true"] == 0) & (meta["y_pred"] == 1)
     fn_mask = (meta["y_true"] == 1) & (meta["y_pred"] == 0)
     tp_mask = (meta["y_true"] == 1) & (meta["y_pred"] == 1)
@@ -229,6 +295,16 @@ def main():
         "best_cost_threshold_val": best_cost_thr,
         "test_results_by_threshold": test_results,
         "delta_cost_test_BRL": delta_cost,
+        "delta_cost_test_note": "Valor por LINHA de telemetria — superestima (cada "
+                                "episódio de DG gera muitas linhas). Use episode_level_cost.",
+        "episode_level_cost": {
+            "note": "Custo deduplicado: 1 episódio de Don't Go = 1 parada física. "
+                    "Métrica honesta de impacto operacional.",
+            "gap_min_fp_cluster": 60,
+            "f1_optimo": ep_f1,
+            "custo_otimo": ep_cost,
+            "delta_cost_episode_BRL": int(episode_delta),
+        },
         "cases_fp": cases["FP"],
         "cases_fn": cases["FN"],
         "summary_test": {

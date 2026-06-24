@@ -1,0 +1,105 @@
+{
+  "tag": "CA65926",
+  "frota": "793-D 4S",
+  "monthly": [
+    {
+      "n_eventos": 14380,
+      "n_dont_go": 31,
+      "n_pre_dg": 809,
+      "criticos_30m_med": 0.0,
+      "criticos_30m_p95": 3.0,
+      "aceleracao_med": 0.0,
+      "taxa_dg_pct": 0.21557719054242003,
+      "taxa_pre_dg_pct": 5.62586926286509,
+      "mes_str": "2025-01"
+    },
+    {
+      "n_eventos": 14561,
+      "n_dont_go": 56,
+      "n_pre_dg": 910,
+      "criticos_30m_med": 0.0,
+      "criticos_30m_p95": 1.0,
+      "aceleracao_med": 0.0,
+      "taxa_dg_pct": 0.3845889705377378,
+      "taxa_pre_dg_pct": 6.249570771238239,
+      "mes_str": "2025-02"
+    },
+    {
+      "n_eventos": 17387,
+      "n_dont_go": 438,
+      "n_pre_dg": 5837,
+      "criticos_30m_med": 0.0,
+      "criticos_30m_p95": 1.0,
+      "aceleracao_med": 0.0,
+      "taxa_dg_pct": 2.519123483062058,
+      "taxa_pre_dg_pct": 33.571058837062175,
+      "mes_str": "2025-03"
+    },
+    {
+      "n_eventos": 13117,
+      "n_dont_go": 34,
+      "n_pre_dg": 752,
+      "criticos_30m_med": 0.0,
+      "criticos_30m_p95": 1.0,
+      "aceleracao_med": 0.0,
+      "taxa_dg_pct": 0.25920561103910955,
+      "taxa_pre_dg_pct": 5.7330182206297176,
+      "mes_str": "2025-04"
+    },
+    {
+      "n_eventos": 15979,
+      "n_dont_go": 66,
+      "n_pre_dg": 1093,
+      "criticos_30m_med": 0.0,
+      "criticos_30m_p95": 1.0,
+      "aceleracao_med": 0.0,
+      "taxa_dg_pct": 0.4130421177795857,
+      "taxa_pre_dg_pct": 6.840227798986169,
+      "mes_str": "2025-05"
+    },
+    {
+      "n_eventos": 20796,
+      "n_dont_go": 4487,
+      "n_pre_dg": 12975,
+      "criticos_30m_med": 5.0,
+      "criticos_30m_p95": 31.0,
+      "aceleracao_med": 0.8724136228210235,
+      "taxa_dg_pct": 21.57626466628198,
+      "taxa_pre_dg_pct": 62.39180611656088,
+      "mes_str": "2025-06"
+    }
+  ],
+  "comparison_with_fleet_4s": [
+    {
+      "mes_label": "JAN",
+      "taxa_dg_pct": 0.21557719054242003,
+      "taxa_4s": 0.5923932377461216
+    },
+    {
+      "mes_label": "FEB",
+      "taxa_dg_pct": 0.3845889705377378,
+      "taxa_4s": 0.616736914153968
+    },
+    {
+      "mes_label": "MAR",
+      "taxa_dg_pct": 2.519123483062058,
+      "taxa_4s": 0.2969820205479452
+    },
+    {
+      "mes_label": "ABR",
+      "taxa_dg_pct": 0.25920561103910955,
+      "taxa_4s": 0.11347635219083906
+    },
+    {
+      "mes_label": "MAY",
+      "taxa_dg_pct": 0.4130421177795857,
+      "taxa_4s": 0.14622866081752023
+    },
+    {
+      "mes_label": "JUN",
+      "taxa_dg_pct": 21.57626466628198,
+      "taxa_4s": 0.10517638363796583
+    }
+  ],
+  "escalation_factor": 100.08602771004351
+}

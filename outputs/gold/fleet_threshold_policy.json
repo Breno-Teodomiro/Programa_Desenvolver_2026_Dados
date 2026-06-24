@@ -1,0 +1,203 @@
+{
+  "cost_assumptions": {
+    "COST_FN_BRL": 50000,
+    "COST_FP_BRL": 800,
+    "ratio_FN_FP": 62.5
+  },
+  "global_threshold_baseline": 0.51,
+  "decision_table": {
+    "793-D 2S": 0.7300000000000001,
+    "793-D 3S": 0.32,
+    "793-D 4S": 0.7300000000000001,
+    "793-D 5S": 0.5900000000000001,
+    "LeTourneau L 1850": 0.51
+  },
+  "val_calibration": {
+    "793-D 2S": {
+      "n_val": 82763,
+      "n_pos_val": 1436,
+      "threshold": 0.7300000000000001,
+      "val_cost_BRL": 29033200.0,
+      "fallback_global": false
+    },
+    "793-D 3S": {
+      "n_val": 20364,
+      "n_pos_val": 344,
+      "threshold": 0.32,
+      "val_cost_BRL": 10919200.0,
+      "fallback_global": false
+    },
+    "793-D 4S": {
+      "n_val": 133603,
+      "n_pos_val": 6583,
+      "threshold": 0.7300000000000001,
+      "val_cost_BRL": 105958400.0,
+      "fallback_global": false
+    },
+    "793-D 5S": {
+      "n_val": 331247,
+      "n_pos_val": 24447,
+      "threshold": 0.5900000000000001,
+      "val_cost_BRL": 207886800.0,
+      "fallback_global": false
+    },
+    "LeTourneau L 1850": {
+      "n_val": 5468314,
+      "n_pos_val": 19432,
+      "threshold": 0.51,
+      "val_cost_BRL": 766252800.0,
+      "fallback_global": false
+    }
+  },
+  "test_per_fleet_policy": [
+    {
+      "Frota": "793-D 2S",
+      "threshold": 0.7300000000000001,
+      "N_eventos": 80349,
+      "N_positivos": 848,
+      "TP": 559,
+      "TN": 61260,
+      "FP": 18241,
+      "FN": 289,
+      "F1": 0.0569014657980456,
+      "precision": 0.029734042553191488,
+      "recall": 0.6591981132075472,
+      "cost_BRL": 29042800
+    },
+    {
+      "Frota": "793-D 3S",
+      "threshold": 0.32,
+      "N_eventos": 20645,
+      "N_positivos": 2179,
+      "TP": 1961,
+      "TN": 3136,
+      "FP": 15330,
+      "FN": 218,
+      "F1": 0.20143810991268618,
+      "precision": 0.11341160141113875,
+      "recall": 0.8999541073887104,
+      "cost_BRL": 23164000
+    },
+    {
+      "Frota": "793-D 4S",
+      "threshold": 0.7300000000000001,
+      "N_eventos": 125897,
+      "N_positivos": 14939,
+      "TP": 13782,
+      "TN": 85609,
+      "FP": 25349,
+      "FN": 1157,
+      "F1": 0.509783613833919,
+      "precision": 0.3522015793105211,
+      "recall": 0.9225517102885066,
+      "cost_BRL": 78129200
+    },
+    {
+      "Frota": "793-D 5S",
+      "threshold": 0.5900000000000001,
+      "N_eventos": 275456,
+      "N_positivos": 17075,
+      "TP": 14937,
+      "TN": 142381,
+      "FP": 116000,
+      "FN": 2138,
+      "F1": 0.20183498635245792,
+      "precision": 0.11407776258811489,
+      "recall": 0.874787701317716,
+      "cost_BRL": 199700000
+    },
+    {
+      "Frota": "LeTourneau L 1850",
+      "threshold": 0.51,
+      "N_eventos": 7351896,
+      "N_positivos": 162,
+      "TP": 22,
+      "TN": 7349051,
+      "FP": 2683,
+      "FN": 140,
+      "F1": 0.015347052668294385,
+      "precision": 0.008133086876155268,
+      "recall": 0.13580246913580246,
+      "cost_BRL": 9146400
+    }
+  ],
+  "test_per_fleet_global": [
+    {
+      "Frota": "793-D 2S",
+      "TP": 636,
+      "TN": 50036,
+      "FP": 29465,
+      "FN": 212,
+      "F1": 0.04109987398623542,
+      "precision": 0.021128866150626226,
+      "recall": 0.75,
+      "cost_BRL": 34172000
+    },
+    {
+      "Frota": "793-D 3S",
+      "TP": 1770,
+      "TN": 5777,
+      "FP": 12689,
+      "FN": 409,
+      "F1": 0.2127659574468085,
+      "precision": 0.12241510477903036,
+      "recall": 0.812299219825608,
+      "cost_BRL": 30601200
+    },
+    {
+      "Frota": "793-D 4S",
+      "TP": 14077,
+      "TN": 65907,
+      "FP": 45051,
+      "FN": 862,
+      "F1": 0.3801153010112466,
+      "precision": 0.23807671492355567,
+      "recall": 0.9422986813039694,
+      "cost_BRL": 79140800
+    },
+    {
+      "Frota": "793-D 5S",
+      "TP": 15411,
+      "TN": 124535,
+      "FP": 133846,
+      "FN": 1664,
+      "F1": 0.1853040906139528,
+      "precision": 0.10325143879349043,
+      "recall": 0.9025475841874085,
+      "cost_BRL": 190276800
+    },
+    {
+      "Frota": "LeTourneau L 1850",
+      "TP": 22,
+      "TN": 7349051,
+      "FP": 2683,
+      "FN": 140,
+      "F1": 0.015347052668294385,
+      "precision": 0.008133086876155268,
+      "recall": 0.13580246913580246,
+      "cost_BRL": 9146400
+    }
+  ],
+  "test_total_policy": {
+    "TP": 31261,
+    "TN": 7641437,
+    "FP": 177603,
+    "FN": 3942,
+    "F1": 0.25616736387959044,
+    "precision": 0.14967155661100046,
+    "recall": 0.8880209073090362,
+    "cost_BRL": 339182400
+  },
+  "test_total_global": {
+    "TP": 31916,
+    "TN": 7595306,
+    "FP": 223734,
+    "FN": 3287,
+    "F1": 0.21946481555975011,
+    "precision": 0.12484255818501858,
+    "recall": 0.9066272760844246,
+    "cost_BRL": 343337200
+  },
+  "additional_savings_BRL": 4154800,
+  "additional_savings_pct": 1.210122293768342
+}

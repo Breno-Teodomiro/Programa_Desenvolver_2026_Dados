@@ -1,18 +1,25 @@
 {
   "test_month": "junho_2025",
-  "roc_auc": 0.9923,
-  "pr_auc": 0.6739,
-  "optimal_threshold": 0.9324,
-  "f1_score": 0.6886,
-  "precision": 0.7581,
-  "recall": 0.6309,
-  "n_features": 54,
+  "threshold_source": "validacao_maio_2025",
+  "optimal_threshold": 0.3297,
+  "roc_auc": 0.9905,
+  "pr_auc": 0.603,
+  "f1_score": 0.6732,
+  "precision": 0.6899,
+  "recall": 0.6573,
+  "val_f1": 0.4138,
+  "val_precision": 0.4917,
+  "val_recall": 0.3573,
+  "n_features": 53,
+  "leakage_features_removed": [
+    "Is_Dont_Go"
+  ],
   "algorithm": "LightGBM",
   "train_months": "jan-abr_2025",
   "eval_month": "mai_2025",
   "neg_sample_ratio": 5,
-  "scale_pos_weight": 40,
+  "scale_pos_weight": 40.0,
   "num_leaves": 255,
   "min_child_samples": 50,
-  "best_iteration": 50
+  "best_iteration": 4
 }

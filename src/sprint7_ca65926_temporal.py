@@ -1,8 +1,11 @@
 """Sprint 7 — Análise temporal de degradação do CA65926.
 
-Memória registra: CA65926 (793-D 4S) — taxa DG média semestral 5.3%,
-mas em Jun/2025 saltou para 61.6%. Esta escalada brutal merece investigação
-visual dedicada. Salva figura impactante e tabela mensal.
+CA65926 (793-D 4S) — a taxa de Don't Go (DGs / eventos do equipamento) salta de
+~0,2% em Jan para 21,58% em Jun/2025 (~100× de aumento). A taxa de eventos
+PRÉ-DG (precursores) chega a ~62% em Jun — não confundir as duas métricas.
+Esta escalada estrutural merece investigação visual dedicada.
+
+Salva: outputs/gold/ca65926_temporal.json + figuras.
 
 Salva: outputs/gold/ca65926_temporal.json + figuras.
 """
@@ -76,8 +79,12 @@ def main():
     colors_bar = ["#10B981", "#3B82F6", "#3B82F6", "#3B82F6", "#F59E0B", "#EF4444"][:len(monthly)]
     bars = ax1.bar(monthly["mes_str"], monthly["taxa_dg_pct"], color=colors_bar, edgecolor="white")
     ax1.set_ylabel("Taxa de Don't Go (%)")
+    _first_pct = float(monthly["taxa_dg_pct"].iloc[0])
+    _last_pct = float(monthly["taxa_dg_pct"].iloc[-1])
+    _factor = _last_pct / max(_first_pct, 1e-6)
     ax1.set_title(f"Escalada Mensal de Don't Go — {TAG_ALVO} ({frota})\n"
-                  f"De 1.6% em Jan para 61.6% em Jun (38× de aumento)")
+                  f"De {_first_pct:.2f}% em Jan para {_last_pct:.2f}% em Jun "
+                  f"({_factor:.0f}× de aumento)")
     for bar, v in zip(bars, monthly["taxa_dg_pct"]):
         ax1.text(bar.get_x() + bar.get_width()/2, v + 0.5, f"{v:.2f}%",
                  ha="center", fontsize=10, fontweight="bold")

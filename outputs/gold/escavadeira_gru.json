@@ -1,0 +1,34 @@
+{
+  "architecture": {
+    "seq_len": 32,
+    "emb_dim": 24,
+    "hidden": 48,
+    "vocab_size": 300,
+    "epochs": 4,
+    "neg_ratio_train": 5
+  },
+  "test_metrics_gru": {
+    "threshold": 0.006598867475986481,
+    "F1": 3.343493336056323e-05,
+    "precision": 1.6717874570757275e-05,
+    "recall": 0.6851851851851852,
+    "ROC_AUC": 0.42861527550196465,
+    "PR_AUC": 0.0001705244815564582,
+    "n_test": 7351896,
+    "n_pos_test": 162,
+    "TP": 111,
+    "FP": 6639489,
+    "FN": 51
+  },
+  "baseline_lgbm_escavadeira": {
+    "F1": 0.0153,
+    "precision": 0.0081,
+    "recall": 0.1358,
+    "PR_AUC": 0.0102,
+    "ROC_AUC": 0.79
+  },
+  "beats_baseline_recall": true,
+  "beats_baseline_prauc": false,
+  "elapsed_s": 203.25987577438354,
+  "note_distribution_shift": "Jun (teste) tem apenas 162 positivos vs ~108k no treino \u2014 mesmo shift severo do Sprint 5."
+}

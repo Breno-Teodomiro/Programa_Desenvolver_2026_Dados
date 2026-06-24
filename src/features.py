@@ -354,6 +354,9 @@ def get_feature_columns(df: pl.DataFrame, include_fingerprint: bool = True) -> l
         "Classe", "Nome_Operador_Anon", "Matricula_Operador_Hash",
         "apontamento_id", "apontamento_classe", "frota", "tipo_equipamento",
         "Id_Alarme", "Id_Criticidade",
+        # Flag do evento ATUAL de Don't Go — vazamento concorrente: em inferência
+        # 1h antes esse flag não estaria ativo. Removido do conjunto de features.
+        "Is_Dont_Go",
     }
     exclude_prefixes = (
         "Data_", "apontamento_inicio", "apontamento_fim",

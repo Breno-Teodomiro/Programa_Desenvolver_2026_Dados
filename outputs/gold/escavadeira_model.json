@@ -1,0 +1,58 @@
+{
+  "frota": "LeTourneau L 1850",
+  "metrics_test": {
+    "threshold": 0.08,
+    "n_test": 7351896,
+    "n_positives": 162,
+    "F1": 0.004331987791670769,
+    "Precision": 0.0022011005502751376,
+    "Recall": 0.13580246913580246,
+    "ROC_AUC": 0.2113501562528826,
+    "PR_AUC": 0.0027432091596793317,
+    "confusion_matrix": [
+      [
+        7341761,
+        9973
+      ],
+      [
+        140,
+        22
+      ]
+    ],
+    "best_iteration": 16
+  },
+  "comparison": {
+    "geral": {
+      "F1": 0.015347052668294385,
+      "Precision": 0.008133086876155268,
+      "Recall": 0.13580246913580246,
+      "PR_AUC": 0.01020832838904554
+    },
+    "especializado": {
+      "F1": 0.004331987791670769,
+      "Precision": 0.0022011005502751376,
+      "Recall": 0.13580246913580246,
+      "PR_AUC": 0.0027432091596793317
+    }
+  },
+  "params": {
+    "objective": "binary",
+    "metric": [
+      "binary_logloss",
+      "auc"
+    ],
+    "num_leaves": 127,
+    "max_depth": -1,
+    "learning_rate": 0.03,
+    "n_estimators": 600,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_samples": 50,
+    "scale_pos_weight": 10.0,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbose": -1
+  },
+  "best_iteration": 16,
+  "n_features": 60
+}
