@@ -1,0 +1,29 @@
+{
+  "tag": "CA65915",
+  "data_evento": "2025-06-04 14:07:30.460000",
+  "probability": 0.9989419601904989,
+  "threshold": 0.9914,
+  "n_test_positives": 35203,
+  "top_features": [
+    {
+      "feature": "n_dg_240m",
+      "shap": 5.212150571427064
+    },
+    {
+      "feature": "n_dg_60m",
+      "shap": 1.7667450156322992
+    },
+    {
+      "feature": "n_dg_30m",
+      "shap": 1.3898475909929544
+    },
+    {
+      "feature": "fp_alarm_1074008260",
+      "shap": 1.1355631594446431
+    },
+    {
+      "feature": "fp_alarm_1074008259",
+      "shap": 0.612299925526006
+    }
+  ]
+}

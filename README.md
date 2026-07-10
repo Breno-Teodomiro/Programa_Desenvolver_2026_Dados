@@ -31,7 +31,7 @@ teste (Jun) — nunca selecionado no próprio teste. A flag do evento atual
 | Telemetria (sensores/alarmes) | 37.164.054 | Jan–Jun 2025 |
 | Apontamentos (estado operacional) | 377.907 | Jan–Jun 2025 |
 
-**Equipamentos:** 47 unidades — Caminhões 793-D (2S/3S/4S/5S) e Escavadeiras LeTourneau L 1850
+**Equipamentos:** 47 unidades nos apontamentos, das quais 35 possuem telemetria no período (cobertas pelo modelo) — Caminhões 793-D (2S/3S/4S/5S) e Escavadeiras LeTourneau L 1850
 
 ## Stack Tecnológica
 
@@ -81,6 +81,8 @@ teste (Jun) — nunca selecionado no próprio teste. A flag do evento atual
 │   ├── visualization.py     # Dashboards HTML interativos (+ snapshots PNG)
 │   ├── retrain_optimized.py # Script de retreino reproduzível
 │   ├── generate_report.py   # Geração automática do relatório Word
+│   ├── data_inspection.py   # Inspeção inicial + controle de alterações (CM 2.1/3.1)
+│   ├── shap_example_waterfall.py # Waterfall SHAP de predição individual (CM 5.3)
 │   └── sprint1..12_*.py     # Análises avançadas reproduzíveis (1 arquivo por sprint)
 ├── outputs/
 │   ├── silver/              # Dados Bronze → Silver (222 MB, 6 meses)

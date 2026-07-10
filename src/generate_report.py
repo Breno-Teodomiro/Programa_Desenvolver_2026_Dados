@@ -25,7 +25,7 @@ VALE_GREEN = RGBColor(0x00, 0xA6, 0x50)
 PARTICIPANTE = {
     "grupo":       "Don't Go Predictor",
     "nome1":       "Breno Teodomiro de Carvalho Neto",
-    "inst1":       "Vale S.A.",
+    "inst1":       "",   # participante individual — linha removida da capa se vazia
     "email1":      "admbrenoteodomiro@hotmail.com",
 }
 
@@ -133,6 +133,24 @@ def _load_esc_gru() -> dict | None:
         return json.load(f)
 
 
+def _load_data_inspection() -> dict | None:
+    """Inspeção inicial dos dados (CM 2.1/3.1) — gerada por data_inspection.py."""
+    path = ROOT / "outputs" / "gold" / "data_inspection.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def _load_shap_example() -> dict | None:
+    """Metadados do waterfall SHAP (CM 5.3) — gerado por shap_example_waterfall.py."""
+    path = ROOT / "outputs" / "gold" / "shap_waterfall_example.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
 def _brl_num(v, digits: int = 1, sign: bool = False) -> str:
     """Formata número no padrão BR (milhar '.', decimal ',')."""
     try:
@@ -174,6 +192,25 @@ def _add_bullet(doc: Document, text: str):
     return p
 
 
+def _replace_in_paragraph(para, old: str, new: str) -> bool:
+    """Substitui `old` no parágrafo mesmo quando o texto está dividido em vários
+    runs ou dentro de hyperlinks (caso dos e-mails da capa do template) —
+    `run.text.replace` puro falha silenciosamente nesses casos."""
+    from docx.oxml.ns import qn
+
+    if old not in para.text:
+        return False
+    t_elems = para._element.findall(".//" + qn("w:t"))
+    full = "".join(t.text or "" for t in t_elems)
+    full = full.replace(old, new)
+    for t in t_elems[1:]:
+        t.text = ""
+    if t_elems:
+        t_elems[0].text = full
+        t_elems[0].set(qn("xml:space"), "preserve")
+    return True
+
+
 def _add_table(doc: Document, headers: list[str], rows: list[list[str]]):
     table = doc.add_table(rows=1 + len(rows), cols=len(headers))
     table.style = "Table Grid"
@@ -197,39 +234,32 @@ def build_report():
     m = _load_metrics()
 
     # ── Capa — substituir placeholders ───────────────────────────────────────
+    cover_replacements = {
+        "Nome do Grupo (Quando aplicável)": PARTICIPANTE["grupo"],
+        "Nome Participante 1": PARTICIPANTE["nome1"],
+        "Instituição Participante 1": PARTICIPANTE["inst1"],
+        "Participante1@email.com": PARTICIPANTE["email1"],
+        "Nome Participante 2": "",
+        "Instituição Participante 2": "",
+        "Participante2@email.com": "",
+        "Nome Participante 3": "",
+        "Instituição Participante 3": "",
+        "Participante3@email.com": "",
+    }
+    cover_paras_to_drop = []
     for para in doc.paragraphs:
-        if "Nome do Grupo" in para.text:
-            for run in para.runs:
-                run.text = run.text.replace("Nome do Grupo (Quando aplicável)",
-                                            PARTICIPANTE["grupo"])
-        if "Nome Participante 1" in para.text:
-            for run in para.runs:
-                run.text = run.text.replace("Nome Participante 1", PARTICIPANTE["nome1"])
-        if "Instituição Participante 1" in para.text:
-            for run in para.runs:
-                run.text = run.text.replace("Instituição Participante 1", PARTICIPANTE["inst1"])
-        if "Participante1@email.com" in para.text:
-            for run in para.runs:
-                run.text = run.text.replace("Participante1@email.com", PARTICIPANTE["email1"])
-        if "Nome Participante 2" in para.text:
-            for run in para.runs:
-                run.text = run.text.replace("Nome Participante 2", "")
-        if "Instituição Participante 2" in para.text:
-            for run in para.runs:
-                run.text = run.text.replace("Instituição Participante 2", "")
-        if "Participante2@email.com" in para.text:
-            for run in para.runs:
-                run.text = run.text.replace("Participante2@email.com", "")
-        if "Nome Participante 3" in para.text:
-            for run in para.runs:
-                run.text = run.text.replace("Nome Participante 3", "")
-        if "Instituição Participante 3" in para.text:
-            for run in para.runs:
-                run.text = run.text.replace("Instituição Participante 3", "")
-        if "Participante3@email.com" in para.text:
-            for run in para.runs:
-                run.text = run.text.replace("Participante3@email.com", "")
+        touched = False
+        for old, new in cover_replacements.items():
+            touched = _replace_in_paragraph(para, old, new) or touched
+        # placeholders substituídos por vazio deixam linha em branco na capa
+        if touched and not para.text.strip():
+            cover_paras_to_drop.append(para)
 
+    for para in cover_paras_to_drop:
+        p_elem = para._element
+        p_elem.getparent().remove(p_elem)
+
+    for para in doc.paragraphs:
         # Resumo e palavras-chave
         if para.text.startswith("Resumo."):
             for run in para.runs:
@@ -265,7 +295,7 @@ def build_report():
                 "LeTourneau L 1850 (Recall=0,14); experimento controlado com modelo dedicado piorou "
                 "métricas devido a distribution shift severo (variação de 600× na taxa DG entre meses), "
                 "direcionando trabalho futuro para feature engineering específica + detecção de drift. "
-                "Entregáveis: dashboard Streamlit interativo, 9 visualizações HTML, 11 notebooks "
+                "Entregáveis: dashboard Streamlit interativo, 9 visualizações HTML, 18 notebooks "
                 "Jupyter reproduzíveis, modelo calibrado, pipeline executável via uv sync."
             )
             run.font.size = Pt(11)
@@ -312,7 +342,7 @@ def build_report():
                 ["Economia estimada (Jun)", "~R$ 26 milhões", "Threshold custo-ótimo vs F1-ótimo, por EPISÓDIO de Don't Go, FN=R$50K, FP=R$800"],
                 ["Equipamento crítico", "CA65926 (793-D 4S)", "Taxa DG 98× acima da média semestral"],
                 ["Modelos comparados", "5 (3 famílias)", "Naive, Regra, Logistic L1, Random Forest, LightGBM"],
-                ["Entregáveis", "12 notebooks + dashboard + relatório", "Streamlit local; 9 dashboards HTML standalone; modelo calibrado; detector de drift"],
+                ["Entregáveis", "18 notebooks + dashboard + relatório", "Streamlit local; 9 dashboards HTML standalone; modelo calibrado; detector de drift"],
             ]),
             ("p", "Equipamentos de mineração pesada — caminhões 793-D e escavadeiras "
              "LeTourneau — geram continuamente dados de telemetria a partir de centenas de sensores "
@@ -349,6 +379,11 @@ def build_report():
             ("h2", "Evento Don't Go"),
             ("p", "O Don't Go é o alerta mais severo do sistema OEM. Ele é gerado quando uma combinação específica de alarmes críticos está ativa simultaneamente, sinalizando que o equipamento não está em condições seguras de operação. Quando acionado, o equipamento é imediatamente retirado de serviço para intervenção de manutenção."),
             ("p", "Análise dos dados revelou que eventos Don't Go representam apenas 0,054% dos registros de telemetria, configurando um desbalanceamento de classes severo (razão 1:1.860). Esse desbalanceamento é o principal desafio técnico do problema."),
+            ("h2", "Pergunta Analítica, Métrica de Sucesso e Cenário de Aplicação (CM 1.2)"),
+            ("p", "Pergunta analítica central: quais equipamentos têm maior risco de gerar um alerta Don't Go nos próximos 60 a 240 minutos, considerando o padrão atual de alarmes e o estado operacional? A pergunta deriva diretamente do problema de negócio (antecipar a parada em vez de reagir a ela) e é mensurável: cada previsão pode ser confrontada com a ocorrência ou não do evento na janela."),
+            ("b", "Métrica de sucesso do negócio: percentual de episódios de Don't Go antecipados com pelo menos 60 minutos e custo evitado por parada. O problema é considerado 'resolvido' quando a maioria das paradas físicas é sinalizada com antecedência suficiente para ação preventiva — resultado alcançado: no regime custo-ótimo o modelo captura ~99,9% dos episódios do mês de teste, com economia estimada de ~R$26 milhões."),
+            ("b", "Métrica técnica associada: F1-Score e PR-AUC sobre o target is_dont_go_next_60m, avaliados sob validação temporal estrita (treino Jan–Abr, validação Mai, teste Jun) — métricas apropriadas para o desbalanceamento de 0,45% de positivos."),
+            ("b", "Cenário de aplicação: o score de risco é recalculado continuamente por equipamento e exibido ao despachante do centro de controle. Score acima do threshold da frota dispara alerta de inspeção preventiva com 1–4 horas de antecedência — janela suficiente para acionar a equipe de manutenção antes da parada não planejada. O dashboard Streamlit entregue demonstra exatamente essa interface de consumo, com ranking de risco e timeline por equipamento."),
             ("h2", "Validação Estruturada de Hipóteses (H1–H7)"),
             ("p", "A análise exploratória testou sete hipóteses pré-registradas no PRD. O quadro abaixo consolida o status de cada uma com a evidência empírica recolhida:"),
             ("tbl", [
@@ -385,11 +420,98 @@ def build_report():
         (p for p in doc.paragraphs if p.style.name == "Heading 1" and "Metodologia" in p.text),
         None,
     )
+    insp = _load_data_inspection() or {}
+    tel_i = insp.get("telemetria", {})
+    apo_i = insp.get("apontamentos", {})
+    tel_vs = tel_i.get("valor_stats", {})
+    apo_ds = apo_i.get("dur_stats_min", {})
     if met_heading:
         _insert_after_paragraph(doc, met_heading, [
+            ("h2", "Inspeção Inicial dos Dados (CM 2.1)"),
+            ("p", "Antes de qualquer transformação, os dois datasets foram inspecionados na íntegra "
+             "(shape, tipos, nulos, duplicatas e janela temporal) via DuckDB direto nos parquets "
+             "originais — quantificação reproduzível por src/data_inspection.py:"),
+            ("tbl", [
+                ["Dataset", "Registros", "Colunas", "Período", "Equipamentos", "Células nulas", "Ids duplicados"],
+                ["Telemetria",
+                 f"{tel_i.get('rows', 37164054):,}".replace(",", "."),
+                 str(tel_i.get("cols", 18)),
+                 "01/01–30/06/2025",
+                 str(tel_i.get("n_tags", 35)),
+                 f"{tel_i.get('null_cells_total', 0):,}".replace(",", "."),
+                 f"{tel_i.get('dup_ids', 0):,}".replace(",", ".")],
+                ["Apontamentos",
+                 f"{apo_i.get('rows', 377907):,}".replace(",", "."),
+                 str(apo_i.get("cols", 7)),
+                 "01/01–30/06/2025",
+                 str(apo_i.get("n_tags", 47)),
+                 f"{apo_i.get('null_cells_total', 0):,}".replace(",", "."),
+                 f"{apo_i.get('dup_ids', 0):,}".replace(",", ".")],
+            ]),
+            ("p", "Os tipos brutos seguem o Dicionario_Dados.xlsx e são validados programaticamente "
+             "(validate_schema em src/ingestion.py). Dois desvios de tipagem foram identificados na "
+             "telemetria: Valor chega como string em formato numérico BR (vírgula decimal) e "
+             "Inicio_Turno/Fim_Turno chegam como string — ambos corrigidos na camada Bronze. "
+             "Nota sobre cobertura: os apontamentos registram 47 equipamentos, dos quais 35 possuem "
+             "telemetria no período — o modelo cobre esses 35."),
+            ("p", "Estatísticas descritivas das variáveis numéricas contínuas:"),
+            ("tbl", [
+                ["Variável", "Min", "Max", "Média", "Mediana", "Desvio padrão"],
+                ["Valor (telemetria, pós-conversão)",
+                 _brl_num(tel_vs.get("min", 0), 1), _brl_num(tel_vs.get("max", 4347), 0),
+                 _brl_num(tel_vs.get("mean", 4.57), 2), _brl_num(tel_vs.get("median", 0.0), 1),
+                 _brl_num(tel_vs.get("std", 28.5), 1)],
+                ["Duração do ciclo de apontamento (min)",
+                 _brl_num(apo_ds.get("min", 0.02), 2), _brl_num(apo_ds.get("max", 60.0), 1),
+                 _brl_num(apo_ds.get("mean", 29.7), 1), _brl_num(apo_ds.get("median", 22.9), 1),
+                 _brl_num(apo_ds.get("std", 24.0), 1)],
+            ]),
+            ("p", "A duração máxima de exatamente 60 minutos confirma que os apontamentos são "
+             "fatiados em ciclos de no máximo 1 hora — propriedade explorada no join temporal da "
+             "camada Silver. A distribuição temporal, o balanceamento da variável alvo (0,45% de "
+             "positivos no target de 60min) e os padrões por frota/turno são detalhados nos "
+             "notebooks 01 e 02 e nas hipóteses H1–H7 da seção anterior."),
+            ("h2", "Limpeza e Controle de Alterações (CM 3.1)"),
+            ("p", "Nenhuma linha foi excluída dos dados originais: as alterações aplicadas são de "
+             "tipagem e rotulagem, todas rastreadas na tabela ANTES/DEPOIS abaixo. As verificações "
+             "de inconsistência temporal exigidas (Inicio > Fim, duração nula ou negativa, "
+             "duplicatas) foram executadas e não encontraram casos:"),
+            ("tbl", [
+                ["Campo", "Problema identificado (ANTES)", "Qtd. registros", "Tratamento (DEPOIS)", "Justificativa"],
+                ["Telemetria.Valor",
+                 "String literal 'NULL' — não conversível para número",
+                 f"{tel_i.get('valor_null_str_rows', 237443):,}".replace(",", ".") + " (0,64%)",
+                 "Convertida para nulo real no cast Bronze (strict=False); linhas mantidas",
+                 "O campo não integra as features do modelo; remover as linhas descartaria alarmes válidos"],
+                ["Telemetria.Valor",
+                 "Número em formato BR (vírgula decimal) armazenado como string",
+                 "todas",
+                 "Conversão ',' → '.' e cast para Float64",
+                 "Tipagem analítica correta para estatísticas e features"],
+                ["Telemetria.Inicio_Turno / Fim_Turno",
+                 "Timestamp armazenado como string",
+                 "todas",
+                 "Parse para Datetime na camada Bronze",
+                 "Habilita operações temporais (janelas, joins)"],
+                ["Apontamentos (Inicio/Fim)",
+                 "Ciclos sobrepostos no mesmo equipamento",
+                 f"{apo_i.get('overlapping_cycles', 427):,}".replace(",", ".") + " (0,11%)",
+                 "Mantidos; o join asof da Silver ordena por Inicio com Id como desempate",
+                 "Sobreposições marginais; excluir criaria lacunas de estado operacional"],
+                ["Ambos os datasets",
+                 "Inicio > Fim, duração nula, valores nulos, duplicatas",
+                 "0",
+                 "—",
+                 "Verificado (CM 3.1); dados chegaram íntegros da origem"],
+            ]),
+            ("p", "Outliers: a variável Valor apresenta cauda longa (máx. 4.347 vs mediana 0), mas "
+             "trata-se de leituras físicas de sensores heterogêneos, não de erro de medição — foram "
+             "mantidos sem winsorização, decisão segura porque o modelo usa contagens e flags de "
+             "alarme, não o Valor bruto. O equipamento CA65926 é outlier comportamental legítimo, "
+             "analisado individualmente na seção de Resultados."),
             ("h2", "Arquitetura do Pipeline (Medallion)"),
             ("p", "A solução implementa uma arquitetura de dados em camadas, garantindo reprodutibilidade e rastreabilidade:"),
-            ("b", "Bronze: ingestão dos parquets de telemetria (37,2M registros) e apontamentos (377K registros) com validação de schema, correção de tipos (Valor em formato BR, timestamps como string) e filtragem de registros inválidos."),
+            ("b", "Bronze: ingestão dos parquets de telemetria (37,2M registros) e apontamentos (377K registros) com validação de schema, correção de tipos (Valor em formato BR, timestamps como string) e verificação de integridade — nulos, duplicatas e consistência temporal (nenhuma linha precisou ser removida; ver CM 3.1)."),
             ("b", "Silver: join temporal entre telemetria e apontamentos (estado operacional por TAG e janela temporal); aplicação do look-ahead de 60, 120 e 240 minutos para criação do target is_dont_go_next_60m. Processado mês a mês para respeitar restrição de RAM."),
             ("b", "Gold: feature engineering dia a dia com overlap de 4 horas para garantir consistência das janelas rolantes. 54 features geradas por equipamento e timestamp."),
             ("h2", "Feature Engineering (54 Features)"),
@@ -429,6 +551,7 @@ def build_report():
     esc_fp_payload = _load_esc_fingerprint()
     esc_gru_payload = _load_esc_gru()
     comp_payload = _load_comparison()
+    shap_ex = _load_shap_example()
 
     # Tabela GRU vs baseline (Sprint 12)
     gru_rows = [["Métrica", "GRU sequencial", "LightGBM geral", "Métrica decisiva?"]]
@@ -491,7 +614,7 @@ def build_report():
                 f"informativo: confirma empiricamente a hipótese da memória do projeto de que o teto de "
                 f"desempenho é imposto pelo CONJUNTO DE FEATURES, não pela família do algoritmo. RF e LightGBM, "
                 f"apesar de mecanismos distintos (bagging vs. boosting), convergem para a mesma fronteira de "
-                f"decisão porque ambos exaurem a informação disponível nas 54 features. Ganho real exigiria "
+                f"decisão porque ambos exaurem a informação disponível nas 53 features do modelo. Ganho real exigiria "
                 f"novas fontes de dados (sequência bruta de alarmes, dados de operador), não mais modelagem "
                 f"sobre o mesmo espaço de features."
             )
@@ -584,12 +707,12 @@ def build_report():
             ("p", "A tabela abaixo consolida o desempenho dos cinco níveis de modelagem avaliados no mesmo conjunto de teste (Junho/2025), permitindo isolar o ganho real do modelo principal sobre alternativas mais simples:"),
             ("tbl", comp_rows or [
                 ["Modelo", "F1", "Precision", "Recall", "ROC-AUC", "PR-AUC"],
-                ["LightGBM (principal)", "0.6728", "0.7005", "0.6472", "0.9923", "0.6739"],
+                ["LightGBM (principal)", "0.6741", "0.7121", "0.6400", "0.9924", "0.7018"],
             ]),
             ("p", "Nota metodológica: esta tabela é o benchmark formal de cinco modelos (Sprint 1), no qual cada modelo é pontuado no mesmo harness unificado sobre a matriz Gold, com o threshold de cada modelo fixado na validação (Mai) e aplicado ao teste (Jun). O modelo de produção é treinado sem a flag de vazamento Is_Dont_Go (53 features); o harness reproduz exatamente sua métrica canônica (F1=0,674, ROC-AUC=0,992, PR-AUC=0,702 — ver model_metrics.json). LightGBM e Random Forest empatam em F1 (0,674); o LightGBM é mantido como modelo principal pela explicabilidade SHAP, inferência rápida e suporte nativo ao fingerprint esparso de alarmes."),
             ("p", "Três observações principais emergem desta comparação:"),
             ("b", "Ganho de F1 do ML sobre a heurística operacional: +341% (0,674 vs 0,153). Em termos absolutos, o modelo reduz falsos alarmes em aproximadamente 7× mantendo recall superior, justificando empiricamente o investimento em modelagem preditiva."),
-            ("b", "Random Forest e LightGBM apresentam desempenho equivalente (F1 0.6761 vs 0.6728), com ROC-AUC ambos acima de 0,99. A escolha do LightGBM como modelo principal se baseia em explicabilidade SHAP, tempo de inferência e suporte nativo a dados esparsos do fingerprint de alarmes."),
+            ("b", "Random Forest e LightGBM apresentam desempenho equivalente (empate técnico em F1 = 0,6741), com ROC-AUC ambos acima de 0,99. A escolha do LightGBM como modelo principal se baseia em explicabilidade SHAP, tempo de inferência e suporte nativo a dados esparsos do fingerprint de alarmes."),
             ("b", "A Regressão Logística obtém ROC-AUC alta (0.967) mas PR-AUC muito baixa (0.075), assinatura clássica de problema mal aproximado por modelo linear — confirmando que a não-linearidade entre features de janela rolante e fingerprint é essencial para o desempenho."),
             ("img", "comparison_f1_bar.png", 5.5),
             ("img", "comparison_pr_curves.png", 5.0),
@@ -743,7 +866,7 @@ def build_report():
             ("h2", "Calibração e Curvas de Threshold"),
             ("p", f"Brier Score = {(horizon_payload or {}).get('calibration', {}).get('brier_score', 0.0203):.4f} (perfeitamente calibrado = 0). "
                    f"O modelo produz probabilidades regulares — adequadas para ranking de risco, mas não calibradas em termos absolutos devido ao uso de scale_pos_weight=40 para tratar desbalanceamento. "
-                   f"Trabalho futuro: aplicar calibração isotônica para uso em precificação de manutenção e seguros."),
+                   f"A solução aplicada é a calibração isotônica pós-treino, detalhada na subseção seguinte."),
             ("img", "calibration_plot.png", 6.0),
             ("p", f"As curvas precision/recall/F1 vs threshold abaixo justificam matematicamente os dois thresholds operacionais escolhidos (fixados na validação de Mai/2025): F1-ótimo (~{(err_payload or {}).get('best_f1_threshold_val', 0.32):.2f}) e custo-ótimo (~{(err_payload or {}).get('best_cost_threshold_val', 0.25):.2f})."),
             ("img", "threshold_curves.png", 5.5),
@@ -836,6 +959,22 @@ def build_report():
             ("p", "A análise do fingerprint revelou que determinados alarmes, quando presentes na janela de 4 horas anteriores a um evento, aumentam significativamente a probabilidade de Don't Go. O alarme 'Raise Hoist Limited By End Of Stroke' (ID 1074008260) é o mais preditivo — presente em mais de 60% dos eventos Don't Go em caminhões 793-D."),
             ("img", "shap_importance.png", 5.0),
             ("p", "A recência do último Don't Go (n_dg_240m) e o contexto temporal (mês, hora do dia) completam o top-5 de features. O mês como feature captura sazonalidade operacional — padrões de manutenção preventiva agendada diferem entre meses."),
+            ("h3", "Decomposição de uma Predição Individual (CM 5.3)"),
+            ("p", (
+                f"Complementando a importância global, o waterfall SHAP abaixo decompõe uma predição "
+                f"específica: o verdadeiro positivo de maior convicção do conjunto de teste — equipamento "
+                f"{(shap_ex or {}).get('tag', 'CA65915')}, "
+                f"{str((shap_ex or {}).get('data_evento', '2025-06-04 14:07'))[:16].replace('-', '/')}"
+                f", probabilidade prevista de "
+                f"{_brl_num((shap_ex or {}).get('probability', 0.999), 4)} (threshold 0,9914), com o Don't Go "
+                f"confirmado nos 60 minutos seguintes. A leitura é direta: partindo do valor-base do modelo, "
+                f"cada barra mostra quanto cada feature empurrou a predição para cima (vermelho) ou para "
+                f"baixo (azul). Neste caso, o histórico recente de Don't Go domina a decisão — 9 eventos na "
+                f"janela de 4h (n_dg_240m) — reforçado pela densidade nas janelas curtas (n_dg_60m, n_dg_30m) "
+                f"e pelo estado do fingerprint de alarmes: um padrão operacional de reincidência que o "
+                f"modelo traduz corretamente em risco extremo. Reproduzível via src/shap_example_waterfall.py."
+            )),
+            ("img", "shap_waterfall.png", 6.0),
             ("img", "timeline_CA65926.png", 5.5),
             ("h2", "Painéis Interativos — Visão Executiva"),
             ("p", "Além do modelo e das análises estáticas, o projeto entrega um conjunto de painéis interativos (Plotly/HTML, em outputs/dashboards/) e um aplicativo Streamlit para consumo operacional contínuo. Abaixo, snapshots estáticos de dois deles; as versões completas permitem zoom, hover e filtros. O primeiro consolida o ranking de risco de toda a frota — priorizando visualmente os equipamentos para inspeção preventiva:"),
@@ -864,7 +1003,7 @@ def build_report():
             ("p", "Os trabalhos futuros listados abaixo são fundamentados em achados específicos desta análise — não são genéricos. Cada item endereça uma limitação documentada ou oportunidade identificada empiricamente:"),
             ("b", "1. Fingerprint dedicado da escavadeira LeTourneau L 1850 — o Sprint 11 já identificou empiricamente os alarmes a adicionar: 'Channel Forced' (lift 44×, taxa pré-DG 16,7%) e 'MC - Temperatura do PTO >90°C' (lift 28,7×) são os sinais mais preditivos e estão 100% ausentes do fingerprint atual (excluídos pelo critério de frequência por serem raros). O próximo passo concreto é (a) adicionar os top-8 alarmes de alto lift da escavadeira como features binárias dedicadas e retreinar avaliando o ganho de recall na LeTourneau, (b) acoplar ao detector de drift do Sprint 8 com threshold relativo por frota (λ_fleet = max(0,005, base_rate × 5)) capturando classes raras, e (c) investigação operacional do colapso de taxa DG entre Mai e Jun — possível achado de negócio em si."),
             ("b", "2. Adaptação online da política de threshold por frota — o Sprint 9 já implementou a tabela de decisão custo-ótima por frota (economia adicional sobre o threshold único e F1 agregado +17% relativo). A evolução natural é acoplar essa política ao detector de drift do Sprint 8: recalibrar automaticamente o threshold de cada frota quando o KS mensal ultrapassar 0,3, mantendo a decisão custo-ótima sob distribuição não-estacionária."),
-            ("b", "3. Calibração isotônica das probabilidades — derivado do Sprint 3: Brier=0,020 com sobre-estimativa em probabilidades intermediárias devido ao scale_pos_weight=40. Pós-processamento isotônico preservaria o ranking e produziria probabilidades absolutas adequadas para precificação de manutenção e seguros."),
+            ("b", "3. Recalibração isotônica periódica — a calibração isotônica já implementada (Sprint 6, Brier −89%) é estática, ajustada uma única vez na validação de Mai/2025. Sob drift de distribuição (documentado no Sprint 8), o mapeamento de probabilidades degrada com o tempo. Propõe-se recalibrar o isotônico a cada ciclo mensal, ou automaticamente quando o detector KS disparar, mantendo probabilidades absolutas confiáveis para precificação de manutenção sem retreinar o modelo."),
             ("b", "4. Investigação operacional do CA65926 — equipamento cuja taxa de Don't Go escalou para 21,58% em Jun/2025 (205× a média da frota 793-D 4S naquele mês; 98× acima da média semestral). Recomenda-se inspeção estrutural profunda; o padrão é incompatível com manutenção corretiva padrão."),
             ("b", "5. Coleta de dados de operador — habilitar a validação da hipótese H7 (D3 do PRD) em rodadas futuras do desafio. As colunas Nome_Operador_Anon e Matricula_Operador_Hash documentadas no dicionário não estão presentes no parquet fornecido."),
             ("b", "6. Re-treinamento adaptativo para a escavadeira — a PoC de modelo sequencial (GRU) do Sprint 12 foi testada e NÃO superou o baseline (PR-AUC 0,0002 vs 0,0102; ROC-AUC 0,43), confirmando que o gargalo é a não-estacionariedade, não a arquitetura. O caminho indicado não é um modelo estático mais complexo, mas (a) pipeline de re-treinamento disparado pelo detector de drift do Sprint 8 e (b) investigação operacional do colapso da taxa de Don't Go da escavadeira entre Mai e Jun/2025. Um Temporal Fusion Transformer só faria sentido após estabilizar a distribuição via re-treino adaptativo."),

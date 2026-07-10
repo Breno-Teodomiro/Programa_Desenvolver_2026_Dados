@@ -561,9 +561,9 @@ contexto específico.
 | **Bronze** | Ingestão dos parquets de telemetria (37M registros, Jan–Jun 2025) |
 | **Silver** | Join com apontamentos + flag `is_dont_go_next_60m` (look-ahead temporal) |
 | **Gold** | Feature engineering: frequências de alarmes, fingerprint, recência, contexto de turno |
-| **Modelo** | LightGBM com `scale_pos_weight` para desbalanceamento 1:77 |
-| **Validação** | Temporal: treino Jan–Mai, teste Jun (sem data leakage) |
-| **Explicabilidade** | SHAP TreeExplainer sobre os 54 features do modelo |
+| **Modelo** | LightGBM com `scale_pos_weight=40` para o desbalanceamento severo (0,45% positivos) |
+| **Validação** | Temporal: treino Jan–Abr, validação Mai (threshold), teste Jun (sem data leakage) |
+| **Explicabilidade** | SHAP TreeExplainer sobre as 53 features do modelo |
 
 **Destaques:** desbalanceamento severo (0.054% DG), pipeline medallion completo,
 alarm fingerprint dos top-30 alarmes como features binárias, aceleração de alarmes

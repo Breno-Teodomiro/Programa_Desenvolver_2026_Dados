@@ -1,8 +1,8 @@
 """Sprint 10 — Ensemble Random Forest + LightGBM.
 
-Motivação: o Sprint 1 mostrou que Random Forest (F1=0.6761) e LightGBM (F1=0.6728)
-empatam tecnicamente, mas erram de formas diferentes (árvores independentes vs.
-boosting sequencial). O F1 do benchmark (~0,69) parece ser o TETO para o
+Motivação: o Sprint 1 mostrou que Random Forest e LightGBM empatam tecnicamente
+(F1=0.6741 ambos), mas erram de formas diferentes (árvores independentes vs.
+boosting sequencial). O F1 do benchmark (~0,67) parece ser o TETO para o
 feature set atual — testar um ensemble é a tentativa metodologicamente limpa de
 romper esse teto SEM adicionar novas features (que causam distribution shift).
 

@@ -1,0 +1,42 @@
+{
+  "telemetria": {
+    "rows": 37164054,
+    "cols": 18,
+    "n_tags": 35,
+    "period": [
+      "2025-01-01 00:00:00.017000",
+      "2025-06-30 23:59:56.887000"
+    ],
+    "null_cells_total": 0,
+    "dup_ids": 0,
+    "valor_null_str_rows": 237443,
+    "valor_stats": {
+      "min": 0.0,
+      "max": 4347.0,
+      "mean": 4.569502824555195,
+      "median": 0.0,
+      "std": 28.503366266367564
+    }
+  },
+  "apontamentos": {
+    "rows": 377907,
+    "cols": 7,
+    "n_tags": 47,
+    "period": [
+      "2025-01-01 00:00:00",
+      "2025-07-01 00:00:00"
+    ],
+    "null_cells_total": 0,
+    "inicio_gt_fim": 0,
+    "dur_zero": 0,
+    "dup_ids": 0,
+    "overlapping_cycles": 427,
+    "dur_stats_min": {
+      "min": 0.016666666666666666,
+      "max": 60.0,
+      "mean": 29.685382867566165,
+      "median": 22.9,
+      "std": 24.041887269524402
+    }
+  }
+}
