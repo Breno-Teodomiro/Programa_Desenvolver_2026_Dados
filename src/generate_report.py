@@ -532,6 +532,15 @@ def build_report():
             ("p", "Estratégia de desbalanceamento: undersampling das amostras negativas (ratio 1:5 no treino) + parâmetro scale_pos_weight calibrado para a proporção real do conjunto de treino."),
             ("p", "Validação temporal estrita: Treino Jan–Abr/2025 (~23M eventos), Validação Mai/2025 (~6M, seleção de threshold e early stopping), Teste Jun/2025 (~7,9M eventos). Separação temporal garante ausência de data leakage."),
             ("p", "Explicabilidade: SHAP TreeExplainer aplicado a amostras do conjunto de teste para identificar as features mais determinantes para cada equipamento e período."),
+            ("h2", "Declaração de Fontes de Dados (Edital, item 4.1)"),
+            ("p", "Nenhuma informação externa ao data pack fornecido pela organização foi utilizada "
+             "neste trabalho: todas as análises, features e modelos derivam exclusivamente dos "
+             "arquivos de telemetria, apontamentos, dicionário de dados e catálogo de regras de "
+             "alarmes recebidos. Os únicos parâmetros exógenos são as premissas de custo da análise "
+             "financeira (FN = R$ 50.000 por parada não planejada e FP = R$ 800 por inspeção "
+             "desnecessária), estimativas internas documentadas na seção de Análise de Erros e Custo "
+             "Operacional — as conclusões de ranking de threshold são robustas à escala absoluta "
+             "desses valores, dependendo apenas da razão FN/FP."),
         ])
 
     # ── Resultados e Discussões ───────────────────────────────────────────────
