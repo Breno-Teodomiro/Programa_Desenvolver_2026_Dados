@@ -206,9 +206,17 @@ uv run streamlit run app.py
 ```
 
 - Abre em `http://localhost:8501` (no WSL2, o Windows encaminha a porta automaticamente — é só abrir essa URL no navegador).
+- **Primeira carga demora ~25-30s** (import do `torch`, puxado pelo `shap`) — a tela fica no esqueleto cinza enquanto isso. Depois da primeira carga fica rápido (tudo cacheado). É esperado; não é travamento.
 - Para rodar em outra porta: `uv run streamlit run app.py --server.port 8502`.
-- Para rodar sem abrir o navegador automaticamente (ex: quando outro processo/IA está gerenciando): `uv run streamlit run app.py --server.headless true`.
 - Para parar: `Ctrl+C` no terminal onde está rodando (ou `pkill -f "streamlit run app.py"` se estiver em background).
+
+> **Nota WSL2 (importante):** rodando a partir de `/mnt/c/...`, o file watcher do
+> Streamlit trava o app em disk-sleep ao tentar vigiar os ~13 mil arquivos do
+> `torch` pela ponte 9p. Isso já está resolvido em `.streamlit/config.toml`
+> (`fileWatcherType = "none"`) — o comando acima funciona direto. O único efeito
+> colateral é não haver hot-reload ao salvar `app.py` (basta reiniciar o app).
+> Para eliminar de vez a lentidão da primeira carga, mova o projeto para o
+> sistema de arquivos nativo do Linux (ex: `~/projetos/`) em vez de `/mnt/c/`.
 
 ## Arquitetura: Pipeline Medallion
 

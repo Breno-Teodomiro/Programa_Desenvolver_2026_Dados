@@ -7,3 +7,7 @@ font = "sans serif"
 
 [server]
 headless = true
+# WSL2/mnt: o file watcher tenta vigiar os ~13 mil arquivos do torch
+# (puxado por shap) atraves da ponte lenta 9p, o que trava o app em disk-sleep.
+# Desligar o watcher resolve. Custo: sem hot-reload ao salvar (reinicie o app).
+fileWatcherType = "none"
