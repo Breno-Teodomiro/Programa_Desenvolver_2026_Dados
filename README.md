@@ -92,7 +92,6 @@ teste (Jun) — nunca selecionado no próprio teste. A flag do evento atual
 │   └── reports/             # Relatório final Word + model_metrics.json
 ├── PRD.md                   # Definição do produto e objetivos
 ├── TECH_SPEC.md             # Arquitetura técnica detalhada
-├── GUIA_APRESENTACAO.md     # Roteiro de apresentação para a banca
 └── pyproject.toml           # Dependências (gerenciado por uv)
 ```
 
