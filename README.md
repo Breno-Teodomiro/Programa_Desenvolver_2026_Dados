@@ -95,6 +95,15 @@ teste (Jun) — nunca selecionado no próprio teste. A flag do evento atual
 └── pyproject.toml           # Dependências (gerenciado por uv)
 ```
 
+## Guia Rápido — O Que Rodar em Cada Situação
+
+| Quero... | Comando |
+|---|---|
+| Só ver o dashboard (dados/modelo já prontos) | `uv run streamlit run app.py` |
+| Reprocessar tudo do zero (ETL + modelo + dashboards) | Seguir "Como Reproduzir do Zero" abaixo, passos 1–6 |
+| Só regenerar os dashboards HTML | Passo 6 |
+| Só retreinar o modelo | Passo 4 |
+
 ## Como Reproduzir do Zero
 
 **Pré-requisito:** [uv](https://docs.astral.sh/uv/) instalado (`pip install uv`).
@@ -187,6 +196,19 @@ Abra os dashboards HTML diretamente no navegador:
 | `07_baseline_comparison.html` | Comparação LightGBM vs regra estática (gerado pelo notebook 06) |
 | `08_alarm_fingerprint_narrative.html` | Fingerprint narrativo com nomes dos alarmes |
 | **`09_story_dashboard.html`** | **Dashboard executivo: narrativa completa do projeto** |
+
+### 8. Executar o dashboard interativo (Streamlit)
+
+Não precisa reprocessar nada — o dashboard lê os artefatos já salvos em `outputs/gold/` e `outputs/reports/`.
+
+```bash
+uv run streamlit run app.py
+```
+
+- Abre em `http://localhost:8501` (no WSL2, o Windows encaminha a porta automaticamente — é só abrir essa URL no navegador).
+- Para rodar em outra porta: `uv run streamlit run app.py --server.port 8502`.
+- Para rodar sem abrir o navegador automaticamente (ex: quando outro processo/IA está gerenciando): `uv run streamlit run app.py --server.headless true`.
+- Para parar: `Ctrl+C` no terminal onde está rodando (ou `pkill -f "streamlit run app.py"` se estiver em background).
 
 ## Arquitetura: Pipeline Medallion
 
