@@ -149,7 +149,7 @@ R: "O alarme 'Raise Hoist Limited By End Of Stroke' (presente em >60% dos Don't 
 
 | Quero mostrar… | Abra… |
 |---|---|
-| O relatório completo | `outputs/reports/Relatorio_Final_DontGo_Predictor.docx` |
+| O relatório completo | `outputs/reports/Relatorio_Final_DontGo_Predictor_Breno_Teodomiro_de_Carvalho_Neto.docx` |
 | A história executiva | `outputs/dashboards/09_story_dashboard.html` |
 | Ranking de risco da frota | `outputs/dashboards/01_fleet_risk.html` |
 | O caso CA65926 | `outputs/dashboards/04_risk_timeline_CA65926_jun.html` |
