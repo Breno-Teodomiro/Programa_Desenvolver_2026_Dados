@@ -9,8 +9,8 @@
 > **Nota de status de entrega (documento-base):** este PRD é o documento de
 > requisitos elaborado no início do projeto (Abril/2026) e é mantido como
 > referência histórica. A solução foi **entregue e estendida** em 12 sprints de
-> refinamento, documentados no `README.md`, no relatório final
-> (`outputs/reports/`) e no `GUIA_APRESENTACAO.md`. Ajuste relevante de meta: o
+> refinamento, documentados no `README.md` e no relatório final
+> (`outputs/reports/`). Ajuste relevante de meta: o
 > alvo inicial de **F1 ≥ 0,75** foi reavaliado empiricamente — o modelo final
 > alcança **F1 = 0,674** (sem vazamento `Is_Dont_Go`, threshold da validação),
 > comprovadamente o teto do conjunto de features atual

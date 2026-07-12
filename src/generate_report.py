@@ -1,7 +1,7 @@
 """Geração automática do Relatório Final no template Desenvolver_Template.docx.
 
 Preenche todas as seções do template com o conteúdo do projeto, métricas e insights.
-Salva em outputs/reports/Relatorio_Final_DontGo_Predictor.docx
+Salva em outputs/reports/Relatorio_Final_DontGo_Predictor_Breno_Teodomiro_de_Carvalho_Neto.docx
 """
 
 import json
@@ -15,7 +15,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 ROOT = Path(__file__).parent.parent
 TEMPLATE = ROOT / "Desenvolver_Template.docx"
 OUT_DIR = ROOT / "outputs" / "reports"
-OUT_FILE = OUT_DIR / "Relatorio_Final_DontGo_Predictor.docx"
+OUT_FILE = OUT_DIR / "Relatorio_Final_DontGo_Predictor_Breno_Teodomiro_de_Carvalho_Neto.docx"
 METRICS_FILE = OUT_DIR / "model_metrics.json"
 FIGURES_DIR = ROOT / "outputs" / "figures"
 
